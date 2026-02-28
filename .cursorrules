@@ -1,0 +1,75 @@
+# GerenciaX Backend — AI Coding Rules
+# Stack: NestJS 10+ · TypeScript 5.4+ strict · Supabase (PostgreSQL 16+) · Drizzle ORM
+# Architecture: Modular Monolith + Hexagonal Architecture (Ports & Adapters)
+# Full docs: docs/00-ai-system-prompt.md (system prompt) + 12 skill files
+
+## CRITICAL RULES — Never Violate
+
+### Hexagonal Architecture
+- Domain layer NEVER imports from Infrastructure or Application
+- Ports are pure TypeScript interfaces (no NestJS decorators)
+- Entities validate their own state in constructor/methods
+- Services inject via `@Inject('PortName')` string token, never adapter class
+- Module binding: `{ provide: 'PortName', useClass: AdapterClass }` in providers
+
+### TypeScript
+- `strict: true` always enabled
+- FORBIDDEN: `any` type. Use `unknown` + type narrowing
+- FORBIDDEN: `.then/.catch`. Always use `async/await`
+- Explicit return types on all public methods
+- File names: `kebab-case`. Classes: `PascalCase`. Variables: `camelCase`
+
+### Security & Multi-tenancy
+- Every business query MUST filter by `tenant_id`
+- FORBIDDEN: storing tokens in localStorage
+- FORBIDDEN: logging passwords, tokens, card data
+- FORBIDDEN: storing full card numbers
+- class-validator with `whitelist: true, forbidNonWhitelisted: true`
+- Login error messages must be generic (never reveal if email exists)
+
+### API & Data
+- Never return Entity outside Service — always use DTO
+- DTOs must use class-validator decorators
+- Response format: `{ success, data, message?, meta?, error? }`
+- Monetary values: `numeric(10, 2)` in Drizzle schema — FORBIDDEN: `float`, `real`, `integer` (cents)
+- Drizzle returns `numeric` as `string` → convert with `parseFloat()` ONLY in Mapper
+- Monetary arithmetic via `Money` value object — never raw math in services/controllers
+- DTO validation for money fields: `@IsNumber({ maxDecimalPlaces: 2 }) @Min(0)`
+- All business tables must have `tenant_id` column with index
+- Controllers are thin: validate → delegate → return
+
+### Testing
+- Every new Service/Entity MUST have `.spec.ts`
+- Unit tests mock Ports (never real adapters)
+- Pattern: Arrange → Act → Assert
+- Min coverage: 90% domain, 80% services, 75% general
+
+## Module Structure
+```
+src/modules/{module}/
+  domain/entities/          → Business entities with validation
+  domain/value-objects/     → Immutable value objects
+  domain/ports/input/       → Use case interfaces
+  domain/ports/output/      → Repository/gateway interfaces
+  application/services/     → Use case orchestration
+  application/dtos/         → Input/Output DTOs with validation
+  application/mappers/      → Entity ↔ DTO conversion
+  infrastructure/controllers/ → HTTP endpoints (thin)
+  infrastructure/repositories/ → Drizzle ORM implementations
+  infrastructure/adapters/  → External service implementations
+  {module}.module.ts        → NestJS module with Port→Adapter bindings
+```
+
+## Documentation
+Read `docs/00-ai-system-prompt.md` first — it contains role definition, task routing (which doc to read for each task), constraints, fallback behavior, self-verification checklist, and common AI mistakes to avoid.
+
+## Self-Check After Generating Code
+- [ ] Domain doesn't import infrastructure?
+- [ ] Ports are pure interfaces?
+- [ ] Injected via string token?
+- [ ] DTOs have class-validator decorators?
+- [ ] Queries filter by tenant_id?
+- [ ] Response is DTO (not Entity)?
+- [ ] No `any` in generated code?
+- [ ] Tests created for new logic?
+- [ ] No sensitive data in responses?

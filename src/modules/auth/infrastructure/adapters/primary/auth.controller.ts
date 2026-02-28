@@ -1,0 +1,153 @@
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import type { Request, Response } from 'express';
+import { AuthService } from '../../../application/services/auth.service.js';
+import { SignupDto } from '../../../application/dtos/signup.dto.js';
+import { LoginDto } from '../../../application/dtos/login.dto.js';
+import { ResetPasswordDto } from '../../../application/dtos/reset-password.dto.js';
+import { Public } from '../../../../../common/decorators/public.decorator.js';
+import { CurrentUser } from '../../../../../common/decorators/current-user.decorator.js';
+
+const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 dias
+
+@ApiTags('Auth')
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Public()
+  @Post('signup')
+  @ApiOperation({
+    summary: 'Cadastro de nova conta (cria tenant + admin user)',
+  })
+  async signup(
+    @Body() dto: SignupDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.signup({
+      name: dto.name,
+      email: dto.email,
+      password: dto.password,
+      companyName: dto.companyName,
+      companyType: dto.companyType,
+    });
+
+    this.setRefreshTokenCookie(res, result.tokens.refreshToken);
+
+    return {
+      success: true,
+      message: 'Conta criada com sucesso',
+      data: {
+        user: result.user,
+        accessToken: result.tokens.accessToken,
+      },
+    };
+  }
+
+  @Public()
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login com email e senha' })
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login({
+      email: dto.email,
+      password: dto.password,
+      device: req.headers['x-device-type'] as string | undefined,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    this.setRefreshTokenCookie(res, result.tokens.refreshToken);
+
+    return {
+      success: true,
+      message: 'Login realizado com sucesso',
+      data: {
+        user: result.user,
+        accessToken: result.tokens.accessToken,
+      },
+    };
+  }
+
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Renovar access token via refresh token (cookie)' })
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = (req as unknown as Record<string, unknown>)[
+      'cookies'
+    ] as Record<string, string> | undefined;
+    const token = refreshToken?.['refreshToken'] ?? '';
+
+    const tokens = await this.authService.refreshToken(token);
+    this.setRefreshTokenCookie(res, tokens.refreshToken);
+
+    return {
+      success: true,
+      data: { accessToken: tokens.accessToken },
+    };
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Logout — revoga refresh token' })
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const cookies = (req as unknown as Record<string, unknown>)['cookies'] as
+      | Record<string, string>
+      | undefined;
+    const refreshToken = cookies?.['refreshToken'];
+
+    if (refreshToken) {
+      await this.authService.logout(refreshToken);
+    }
+
+    res.clearCookie('refreshToken', { path: '/api/v1/auth' });
+
+    return { success: true, message: 'Logout realizado' };
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Alterar senha do usuário autenticado' })
+  async resetPassword(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: ResetPasswordDto,
+  ) {
+    await this.authService.resetPassword(
+      userId,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+
+    return { success: true, message: 'Senha alterada com sucesso' };
+  }
+
+  // ── Private ───────────────────────────────────────────────
+
+  private setRefreshTokenCookie(res: Response, token: string): void {
+    res.cookie('refreshToken', token, {
+      httpOnly: true,
+      secure: process.env['NODE_ENV'] === 'prod',
+      sameSite: 'strict',
+      maxAge: REFRESH_TOKEN_MAX_AGE,
+      path: '/api/v1/auth',
+    });
+  }
+}

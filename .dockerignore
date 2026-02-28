@@ -1,0 +1,16 @@
+# ══════════════════════════════════════════════════════════
+# GerenciaX API — .dockerignore
+# ══════════════════════════════════════════════════════════
+
+node_modules
+dist
+coverage
+.env
+.env.*
+.git
+.gitignore
+*.md
+docs/
+drizzle/
+.vscode/
+.idea/
