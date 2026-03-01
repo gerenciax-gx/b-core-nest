@@ -4,6 +4,7 @@ import {
   varchar,
   timestamp,
   boolean,
+  date,
   index,
 } from 'drizzle-orm/pg-core';
 import { userRoleEnum } from '../../../../../../common/database/enums.js';
@@ -21,6 +22,9 @@ export const users = pgTable(
     passwordHash: varchar('password_hash', { length: 255 }).notNull(),
     role: userRoleEnum('role').default('admin').notNull(),
     avatarUrl: varchar('avatar_url', { length: 500 }),
+    phone: varchar('phone', { length: 20 }),
+    cpf: varchar('cpf', { length: 14 }),
+    birthDate: date('birth_date'),
     isActive: boolean('is_active').default(true).notNull(),
 
     // Fluxo Collaborator → User

@@ -1,0 +1,97 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { eq, and } from 'drizzle-orm';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
+import type { CategoryRepositoryPort } from '../../../../domain/ports/output/category.repository.port.js';
+import {
+  Category,
+  type CategoryType,
+} from '../../../../domain/entities/category.entity.js';
+import { categories } from './category.schema.js';
+
+@Injectable()
+export class DrizzleCategoryRepository implements CategoryRepositoryPort {
+  constructor(
+    @Inject(DATABASE_CONNECTION)
+    private readonly db: NodePgDatabase,
+  ) {}
+
+  async save(category: Category): Promise<Category> {
+    await this.db.insert(categories).values({
+      id: category.id,
+      tenantId: category.tenantId,
+      name: category.name,
+      type: category.type,
+      isActive: category.isActive,
+      sortOrder: category.sortOrder,
+      createdAt: category.createdAt,
+      updatedAt: category.updatedAt,
+    });
+    return category;
+  }
+
+  async findById(id: string, tenantId: string): Promise<Category | null> {
+    const rows = await this.db
+      .select()
+      .from(categories)
+      .where(and(eq(categories.id, id), eq(categories.tenantId, tenantId)))
+      .limit(1);
+
+    const row = rows[0];
+    if (!row) return null;
+    return this.toDomain(row);
+  }
+
+  async findAllByTenant(
+    tenantId: string,
+    type?: CategoryType,
+  ): Promise<Category[]> {
+    const conditions = [eq(categories.tenantId, tenantId)];
+    if (type) conditions.push(eq(categories.type, type));
+
+    const rows = await this.db
+      .select()
+      .from(categories)
+      .where(and(...conditions))
+      .orderBy(categories.sortOrder);
+
+    return rows.map((row) => this.toDomain(row));
+  }
+
+  async update(category: Category): Promise<Category> {
+    await this.db
+      .update(categories)
+      .set({
+        name: category.name,
+        isActive: category.isActive,
+        sortOrder: category.sortOrder,
+        updatedAt: category.updatedAt,
+      })
+      .where(
+        and(
+          eq(categories.id, category.id),
+          eq(categories.tenantId, category.tenantId),
+        ),
+      );
+    return category;
+  }
+
+  async delete(id: string, tenantId: string): Promise<void> {
+    await this.db
+      .delete(categories)
+      .where(and(eq(categories.id, id), eq(categories.tenantId, tenantId)));
+  }
+
+  private toDomain(row: typeof categories.$inferSelect): Category {
+    return new Category(
+      row.id,
+      row.tenantId,
+      row.name,
+      row.type as CategoryType,
+      row.isActive,
+      row.sortOrder,
+      row.createdAt,
+      row.updatedAt,
+    );
+  }
+}

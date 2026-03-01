@@ -30,6 +30,7 @@ import {
 // ── Feature modules ───────────────────────────────────────
 import { AuthModule } from './modules/auth/auth.module.js';
 import { TenantModule } from './modules/tenant/tenant.module.js';
+import { CategoryModule } from './modules/category/category.module.js';
 import { ProductModule } from './modules/product/product.module.js';
 import { ServiceModule } from './modules/service/service.module.js';
 import { CollaboratorModule } from './modules/collaborator/collaborator.module.js';
@@ -81,6 +82,7 @@ import { QueueModule } from './modules/queue/queue.module.js';
     // ── Feature modules ────────────────────────────────────
     AuthModule,
     TenantModule,
+    CategoryModule,
     ProductModule,
     ServiceModule,
     CollaboratorModule,

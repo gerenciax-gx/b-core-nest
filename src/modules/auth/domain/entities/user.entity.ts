@@ -12,6 +12,9 @@ export interface CreateUserProps {
   role: UserRole;
   collaboratorId?: string;
   mustResetPassword?: boolean;
+  phone?: string;
+  cpf?: string;
+  birthDate?: string;
 }
 
 export class User {
@@ -26,6 +29,9 @@ export class User {
     private _collaboratorId: string | null,
     private _mustResetPassword: boolean,
     private _avatarUrl: string | null,
+    private _phone: string | null,
+    private _cpf: string | null,
+    private _birthDate: string | null,
     private _lastLoginAt: Date | null,
     public readonly createdAt: Date,
     private _updatedAt: Date,
@@ -45,6 +51,9 @@ export class User {
       props.collaboratorId ?? null,
       props.mustResetPassword ?? false,
       null,
+      props.phone ?? null,
+      props.cpf ?? null,
+      props.birthDate ?? null,
       null,
       new Date(),
       new Date(),
@@ -63,6 +72,9 @@ export class User {
     collaboratorId: string | null;
     mustResetPassword: boolean;
     avatarUrl: string | null;
+    phone: string | null;
+    cpf: string | null;
+    birthDate: string | null;
     lastLoginAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
@@ -78,6 +90,9 @@ export class User {
       data.collaboratorId,
       data.mustResetPassword,
       data.avatarUrl,
+      data.phone,
+      data.cpf,
+      data.birthDate,
       data.lastLoginAt,
       data.createdAt,
       data.updatedAt,
@@ -108,6 +123,15 @@ export class User {
   }
   get avatarUrl(): string | null {
     return this._avatarUrl;
+  }
+  get phone(): string | null {
+    return this._phone;
+  }
+  get cpf(): string | null {
+    return this._cpf;
+  }
+  get birthDate(): string | null {
+    return this._birthDate;
   }
   get lastLoginAt(): Date | null {
     return this._lastLoginAt;
@@ -143,13 +167,29 @@ export class User {
     this._updatedAt = new Date();
   }
 
-  updateProfile(name: string, avatarUrl?: string): void {
+  updateProfile(data: {
+    name?: string;
+    avatarUrl?: string;
+    phone?: string | null;
+    cpf?: string | null;
+    birthDate?: string | null;
+  }): void {
+    const name = data.name ?? this._name;
     if (!name || name.trim().length < 2) {
       throw new DomainException('Nome deve ter pelo menos 2 caracteres');
     }
     this._name = name.trim();
-    if (avatarUrl !== undefined) {
-      this._avatarUrl = avatarUrl;
+    if (data.avatarUrl !== undefined) {
+      this._avatarUrl = data.avatarUrl;
+    }
+    if (data.phone !== undefined) {
+      this._phone = data.phone;
+    }
+    if (data.cpf !== undefined) {
+      this._cpf = data.cpf;
+    }
+    if (data.birthDate !== undefined) {
+      this._birthDate = data.birthDate;
     }
     this._updatedAt = new Date();
   }

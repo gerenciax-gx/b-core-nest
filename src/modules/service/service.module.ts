@@ -1,12 +1,18 @@
 import { Module } from '@nestjs/common';
+import { ServiceService } from './application/services/service.service.js';
+import { ServiceController } from './infrastructure/adapters/primary/service.controller.js';
+import { DrizzleServiceRepository } from './infrastructure/adapters/secondary/persistence/drizzle-service.repository.js';
 
 @Module({
   imports: [],
-  controllers: [],
+  controllers: [ServiceController],
   providers: [
-    // Port → Adapter bindings go here
-    // { provide: 'ServiceRepositoryPort', useClass: DrizzleServiceRepository },
+    ServiceService,
+    {
+      provide: 'ServiceRepositoryPort',
+      useClass: DrizzleServiceRepository,
+    },
   ],
-  exports: [],
+  exports: [ServiceService],
 })
 export class ServiceModule {}

@@ -1,12 +1,17 @@
 import { Module } from '@nestjs/common';
+import { UploadService } from './application/services/upload.service.js';
+import { UploadController } from './infrastructure/adapters/primary/upload.controller.js';
+import { SupabaseStorageAdapter } from './infrastructure/adapters/secondary/storage/supabase-storage.adapter.js';
 
 @Module({
-  imports: [],
-  controllers: [],
+  controllers: [UploadController],
   providers: [
-    // Port → Adapter bindings go here
-    // { provide: 'StoragePort', useClass: SupabaseStorageAdapter },
+    UploadService,
+    {
+      provide: 'StoragePort',
+      useClass: SupabaseStorageAdapter,
+    },
   ],
-  exports: [],
+  exports: [UploadService],
 })
 export class UploadModule {}
