@@ -8,6 +8,9 @@ import type {
   ProductResponseDto,
   ProductListItemDto,
 } from '../dto/product.dto.js';
+import type { ListProductsQueryDto } from '../dto/list-products-query.dto.js';
+import type { PaginatedResponse } from '../../../../common/types/api-response.type.js';
+import { createPaginatedResponse } from '../../../../common/helpers/paginated-response.helper.js';
 
 @Injectable()
 export class ProductService {
@@ -91,9 +94,20 @@ export class ProductService {
     return this.toResponse(product);
   }
 
-  async findAll(tenantId: string): Promise<ProductListItemDto[]> {
-    const list = await this.productRepo.findAllByTenant(tenantId);
-    return list.map((p) => this.toListItem(p));
+  async findAll(
+    tenantId: string,
+    query: ListProductsQueryDto,
+  ): Promise<PaginatedResponse<ProductListItemDto>> {
+    const { page = 1, limit = 20 } = query;
+
+    const [products, total] = await this.productRepo.findAllByTenant(
+      tenantId,
+      { page, limit, sortBy: query.sortBy, sortOrder: query.sortOrder },
+      { status: query.status, categoryId: query.categoryId, search: query.search },
+    );
+
+    const data = products.map((p) => this.toListItem(p));
+    return createPaginatedResponse(data, total, page, limit);
   }
 
   async findById(
@@ -185,7 +199,7 @@ export class ProductService {
 
   async delete(id: string, tenantId: string): Promise<void> {
     const product = await this.productRepo.findById(id, tenantId);
-    if (!product) throw new NotFoundException('Product not found');
+    if (!product) throw new NotFoundException('Produto não encontrado');
     await this.productRepo.delete(id, tenantId);
   }
 

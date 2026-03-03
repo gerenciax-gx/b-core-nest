@@ -44,6 +44,6 @@ export class DashboardResponseDto {
   @ApiProperty({ example: 0, description: 'Notificações não lidas (implementado na Fase 5)' })
   unreadNotifications!: number;
 
-  @ApiProperty({ nullable: true, description: 'Resumo da assinatura (implementado na Fase 4)' })
-  subscription!: null;
+  @ApiProperty({ type: String, nullable: true, example: null, description: 'Resumo da assinatura (implementado na Fase 4)' })
+  subscription!: string | null;
 }

@@ -14,8 +14,12 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiBody,
+  ApiResponse,
+  ApiParam,
 } from '@nestjs/swagger';
 import { UploadService } from '../../../application/services/upload.service.js';
+import { UploadSuccessResponseDto, UploadMultipleSuccessResponseDto } from '../../../application/dto/upload-response-wrapper.dto.js';
+import { ApiErrorResponseDto, ApiMessageResponseDto } from '../../../../../common/swagger/api-responses.dto.js';
 import { CurrentTenant } from '../../../../../common/decorators/current-tenant.decorator.js';
 
 @ApiTags('Uploads')
@@ -37,6 +41,9 @@ export class UploadController {
       },
     },
   })
+  @ApiResponse({ status: 201, description: 'Imagem enviada com sucesso', type: UploadSuccessResponseDto })
+  @ApiResponse({ status: 400, description: 'Arquivo inválido', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async uploadImage(
     @UploadedFile() file: Express.Multer.File,
     @CurrentTenant() tenantId: string,
@@ -68,6 +75,9 @@ export class UploadController {
       },
     },
   })
+  @ApiResponse({ status: 201, description: 'Imagens enviadas com sucesso', type: UploadMultipleSuccessResponseDto })
+  @ApiResponse({ status: 400, description: 'Arquivos inválidos', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async uploadImages(
     @UploadedFiles() files: Express.Multer.File[],
     @CurrentTenant() tenantId: string,
@@ -86,6 +96,10 @@ export class UploadController {
 
   @Delete(':path')
   @ApiOperation({ summary: 'Remover arquivo por path' })
+  @ApiParam({ name: 'path', description: 'Caminho do arquivo no storage' })
+  @ApiResponse({ status: 200, description: 'Arquivo removido', type: ApiMessageResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, description: 'Arquivo não encontrado', type: ApiErrorResponseDto })
   async deleteFile(@Param('path') filePath: string) {
     await this.uploadService.deleteFile(filePath);
 

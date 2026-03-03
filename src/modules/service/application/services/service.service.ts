@@ -8,6 +8,9 @@ import type {
   ServiceResponseDto,
   ServiceListItemDto,
 } from '../dto/service.dto.js';
+import type { ListServicesQueryDto } from '../dto/list-services-query.dto.js';
+import type { PaginatedResponse } from '../../../../common/types/api-response.type.js';
+import { createPaginatedResponse } from '../../../../common/helpers/paginated-response.helper.js';
 
 @Injectable()
 export class ServiceService {
@@ -68,9 +71,20 @@ export class ServiceService {
     return this.toResponse(service);
   }
 
-  async findAll(tenantId: string): Promise<ServiceListItemDto[]> {
-    const list = await this.serviceRepo.findAllByTenant(tenantId);
-    return list.map((s) => this.toListItem(s));
+  async findAll(
+    tenantId: string,
+    query: ListServicesQueryDto,
+  ): Promise<PaginatedResponse<ServiceListItemDto>> {
+    const { page = 1, limit = 20 } = query;
+
+    const [serviceList, total] = await this.serviceRepo.findAllByTenant(
+      tenantId,
+      { page, limit, sortBy: query.sortBy, sortOrder: query.sortOrder },
+      { status: query.status, categoryId: query.categoryId, search: query.search },
+    );
+
+    const data = serviceList.map((s) => this.toListItem(s));
+    return createPaginatedResponse(data, total, page, limit);
   }
 
   async findById(

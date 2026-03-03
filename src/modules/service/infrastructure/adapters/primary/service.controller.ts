@@ -10,13 +10,16 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { ServiceService } from '../../../application/services/service.service.js';
 import {
   CreateServiceDto,
   UpdateServiceDto,
 } from '../../../application/dto/service.dto.js';
+import { ListServicesQueryDto } from '../../../application/dto/list-services-query.dto.js';
+import { ServiceSuccessResponseDto, ServicePaginatedResponseDto } from '../../../application/dto/service-response-wrapper.dto.js';
 import { CurrentTenant } from '../../../../../common/decorators/current-tenant.decorator.js';
+import { ApiErrorResponseDto, ApiMessageResponseDto } from '../../../../../common/swagger/api-responses.dto.js';
 
 @ApiTags('Services')
 @ApiBearerAuth()
@@ -26,6 +29,9 @@ export class ServiceController {
 
   @Post()
   @ApiOperation({ summary: 'Criar serviço' })
+  @ApiResponse({ status: 201, description: 'Serviço criado com sucesso', type: ServiceSuccessResponseDto })
+  @ApiResponse({ status: 400, description: 'Dados de entrada inválidos', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async create(
     @CurrentTenant() tenantId: string,
     @Body() dto: CreateServiceDto,
@@ -35,14 +41,22 @@ export class ServiceController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar serviços' })
-  async findAll(@CurrentTenant() tenantId: string) {
-    const data = await this.serviceService.findAll(tenantId);
-    return { success: true, data };
+  @ApiOperation({ summary: 'Listar serviços (paginado)' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de serviços', type: ServicePaginatedResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  async findAll(
+    @CurrentTenant() tenantId: string,
+    @Query() query: ListServicesQueryDto,
+  ) {
+    return this.serviceService.findAll(tenantId, query);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Obter serviço por ID' })
+  @ApiParam({ name: 'id', description: 'UUID do serviço' })
+  @ApiResponse({ status: 200, description: 'Serviço encontrado', type: ServiceSuccessResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, description: 'Serviço não encontrado', type: ApiErrorResponseDto })
   async findById(
     @Param('id') id: string,
     @CurrentTenant() tenantId: string,
@@ -53,6 +67,11 @@ export class ServiceController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Atualizar serviço' })
+  @ApiParam({ name: 'id', description: 'UUID do serviço' })
+  @ApiResponse({ status: 200, description: 'Serviço atualizado', type: ServiceSuccessResponseDto })
+  @ApiResponse({ status: 400, description: 'Dados de entrada inválidos', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, description: 'Serviço não encontrado', type: ApiErrorResponseDto })
   async update(
     @Param('id') id: string,
     @CurrentTenant() tenantId: string,
@@ -65,6 +84,10 @@ export class ServiceController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Excluir serviço' })
+  @ApiParam({ name: 'id', description: 'UUID do serviço' })
+  @ApiResponse({ status: 200, description: 'Serviço excluído', type: ApiMessageResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, description: 'Serviço não encontrado', type: ApiErrorResponseDto })
   async delete(
     @Param('id') id: string,
     @CurrentTenant() tenantId: string,

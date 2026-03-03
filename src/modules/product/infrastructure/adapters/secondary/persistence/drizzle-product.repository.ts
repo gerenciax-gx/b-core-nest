@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ilike, sql, asc, desc, type SQL } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
@@ -19,6 +19,7 @@ import {
   productPhotos,
   productCustomFields,
 } from './product.schema.js';
+import type { PaginationQuery } from '../../../../../../common/types/api-response.type.js';
 
 @Injectable()
 export class DrizzleProductRepository implements ProductRepositoryPort {
@@ -70,14 +71,55 @@ export class DrizzleProductRepository implements ProductRepositoryPort {
     return product;
   }
 
-  async findAllByTenant(tenantId: string): Promise<Product[]> {
+  async findAllByTenant(
+    tenantId: string,
+    pagination: PaginationQuery,
+    filters?: { status?: string; categoryId?: string; search?: string },
+  ): Promise<[Product[], number]> {
+    const { page = 1, limit = 20, sortBy, sortOrder = 'desc' } = pagination;
+    const offset = (page - 1) * limit;
+
+    const conditions: SQL[] = [eq(products.tenantId, tenantId)];
+    if (filters?.status) conditions.push(eq(products.status, filters.status as 'active' | 'inactive' | 'draft'));
+    if (filters?.categoryId) conditions.push(eq(products.categoryId, filters.categoryId));
+    if (filters?.search) {
+      conditions.push(
+        sql`(${ilike(products.name, `%${filters.search}%`)} OR ${ilike(products.sku, `%${filters.search}%`)})`,
+      );
+    }
+
+    const whereClause = and(...conditions);
+
+    const [countResult] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(products)
+      .where(whereClause);
+
+    const total = countResult?.count ?? 0;
+
+    const sortColumn = this.getSortColumn(sortBy);
+    const orderFn = sortOrder === 'asc' ? asc : desc;
+
     const rows = await this.db
       .select()
       .from(products)
-      .where(eq(products.tenantId, tenantId))
-      .orderBy(products.createdAt);
+      .where(whereClause)
+      .orderBy(orderFn(sortColumn))
+      .limit(limit)
+      .offset(offset);
 
-    return rows.map((row) => this.toDomain(row));
+    return [rows.map((row) => this.toDomain(row)), total];
+  }
+
+  private getSortColumn(sortBy?: string) {
+    const sortMap: Record<string, any> = {
+      name: products.name,
+      basePrice: products.basePrice,
+      stock: products.stock,
+      status: products.status,
+      createdAt: products.createdAt,
+    };
+    return sortMap[sortBy ?? 'createdAt'] ?? products.createdAt;
   }
 
   async update(product: Product): Promise<Product> {

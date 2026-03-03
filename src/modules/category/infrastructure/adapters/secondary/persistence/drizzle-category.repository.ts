@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ilike, sql, asc, desc, type SQL } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
 import type { CategoryRepositoryPort } from '../../../../domain/ports/output/category.repository.port.js';
@@ -8,6 +8,7 @@ import {
   type CategoryType,
 } from '../../../../domain/entities/category.entity.js';
 import { categories } from './category.schema.js';
+import type { PaginationQuery } from '../../../../../../common/types/api-response.type.js';
 
 @Injectable()
 export class DrizzleCategoryRepository implements CategoryRepositoryPort {
@@ -44,18 +45,48 @@ export class DrizzleCategoryRepository implements CategoryRepositoryPort {
 
   async findAllByTenant(
     tenantId: string,
-    type?: CategoryType,
-  ): Promise<Category[]> {
-    const conditions = [eq(categories.tenantId, tenantId)];
-    if (type) conditions.push(eq(categories.type, type));
+    pagination: PaginationQuery,
+    filters?: { type?: CategoryType; search?: string },
+  ): Promise<[Category[], number]> {
+    const { page = 1, limit = 20, sortBy, sortOrder = 'desc' } = pagination;
+    const offset = (page - 1) * limit;
+
+    const conditions: SQL[] = [eq(categories.tenantId, tenantId)];
+    if (filters?.type) conditions.push(eq(categories.type, filters.type));
+    if (filters?.search) {
+      conditions.push(ilike(categories.name, `%${filters.search}%`));
+    }
+
+    const whereClause = and(...conditions);
+
+    const [countResult] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(categories)
+      .where(whereClause);
+
+    const total = countResult?.count ?? 0;
+
+    const sortColumn = this.getSortColumn(sortBy);
+    const orderFn = sortOrder === 'asc' ? asc : desc;
 
     const rows = await this.db
       .select()
       .from(categories)
-      .where(and(...conditions))
-      .orderBy(categories.sortOrder);
+      .where(whereClause)
+      .orderBy(orderFn(sortColumn))
+      .limit(limit)
+      .offset(offset);
 
-    return rows.map((row) => this.toDomain(row));
+    return [rows.map((row) => this.toDomain(row)), total];
+  }
+
+  private getSortColumn(sortBy?: string) {
+    const sortMap: Record<string, any> = {
+      name: categories.name,
+      sortOrder: categories.sortOrder,
+      createdAt: categories.createdAt,
+    };
+    return sortMap[sortBy ?? 'sortOrder'] ?? categories.sortOrder;
   }
 
   async update(category: Category): Promise<Category> {

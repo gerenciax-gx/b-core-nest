@@ -19,6 +19,8 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiBody,
+  ApiResponse,
+  ApiParam,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { SettingsService } from '../../../application/services/settings.service.js';
@@ -28,6 +30,14 @@ import { UpdateCompanyDto } from '../../../application/dto/update-company.dto.js
 import { ChangePasswordDto } from '../../../application/dto/change-password.dto.js';
 import { UpdateAppearanceDto } from '../../../application/dto/update-appearance.dto.js';
 import { UpdateNotificationPreferencesDto } from '../../../application/dto/update-notification-preferences.dto.js';
+import {
+  PersonalSuccessResponseDto,
+  CompanySuccessResponseDto,
+  AppearanceSuccessResponseDto,
+  NotificationPreferencesSuccessResponseDto,
+  SessionListSuccessResponseDto,
+} from '../../../application/dto/settings-response-wrapper.dto.js';
+import { ApiErrorResponseDto, ApiMessageResponseDto } from '../../../../../common/swagger/api-responses.dto.js';
 import { CurrentUser } from '../../../../../common/decorators/current-user.decorator.js';
 import { CurrentTenant } from '../../../../../common/decorators/current-tenant.decorator.js';
 
@@ -44,6 +54,8 @@ export class SettingsController {
 
   @Get('personal')
   @ApiOperation({ summary: 'Obter dados pessoais do usuário' })
+  @ApiResponse({ status: 200, description: 'Dados pessoais retornados', type: PersonalSuccessResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async getPersonal(@CurrentUser('sub') userId: string) {
     const data = await this.settingsService.getPersonal(userId);
     return { success: true, data };
@@ -51,6 +63,9 @@ export class SettingsController {
 
   @Put('personal')
   @ApiOperation({ summary: 'Atualizar dados pessoais' })
+  @ApiResponse({ status: 200, description: 'Dados pessoais atualizados', type: PersonalSuccessResponseDto })
+  @ApiResponse({ status: 400, description: 'Dados de entrada inválidos', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async updatePersonal(
     @CurrentUser('sub') userId: string,
     @Body() dto: UpdatePersonalDto,
@@ -71,6 +86,9 @@ export class SettingsController {
       },
     },
   })
+  @ApiResponse({ status: 201, description: 'Foto atualizada com sucesso', type: PersonalSuccessResponseDto })
+  @ApiResponse({ status: 400, description: 'Arquivo inválido', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async uploadPhoto(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser('sub') userId: string,
@@ -89,6 +107,8 @@ export class SettingsController {
 
   @Get('company')
   @ApiOperation({ summary: 'Obter dados da empresa' })
+  @ApiResponse({ status: 200, description: 'Dados da empresa retornados', type: CompanySuccessResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async getCompany(@CurrentTenant() tenantId: string) {
     const data = await this.settingsService.getCompany(tenantId);
     return { success: true, data };
@@ -96,6 +116,10 @@ export class SettingsController {
 
   @Put('company')
   @ApiOperation({ summary: 'Atualizar dados da empresa (admin only)' })
+  @ApiResponse({ status: 200, description: 'Dados da empresa atualizados', type: CompanySuccessResponseDto })
+  @ApiResponse({ status: 400, description: 'Dados de entrada inválidos', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, description: 'Apenas administradores podem alterar', type: ApiErrorResponseDto })
   async updateCompany(
     @CurrentTenant() tenantId: string,
     @CurrentUser('role') role: string,
@@ -113,6 +137,8 @@ export class SettingsController {
 
   @Get('appearance')
   @ApiOperation({ summary: 'Obter configurações de aparência' })
+  @ApiResponse({ status: 200, description: 'Configurações de aparência retornadas', type: AppearanceSuccessResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async getAppearance(@CurrentUser('sub') userId: string) {
     const data = await this.settingsService.getAppearance(userId);
     return { success: true, data };
@@ -120,6 +146,9 @@ export class SettingsController {
 
   @Put('appearance')
   @ApiOperation({ summary: 'Atualizar configurações de aparência' })
+  @ApiResponse({ status: 200, description: 'Configurações de aparência atualizadas', type: AppearanceSuccessResponseDto })
+  @ApiResponse({ status: 400, description: 'Dados de entrada inválidos', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async updateAppearance(
     @CurrentUser('sub') userId: string,
     @Body() dto: UpdateAppearanceDto,
@@ -132,6 +161,8 @@ export class SettingsController {
 
   @Get('notifications')
   @ApiOperation({ summary: 'Obter preferências de notificação' })
+  @ApiResponse({ status: 200, description: 'Preferências de notificação retornadas', type: NotificationPreferencesSuccessResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async getNotificationPreferences(@CurrentUser('sub') userId: string) {
     const data = await this.settingsService.getNotificationPreferences(userId);
     return { success: true, data };
@@ -139,6 +170,9 @@ export class SettingsController {
 
   @Put('notifications')
   @ApiOperation({ summary: 'Atualizar preferências de notificação' })
+  @ApiResponse({ status: 200, description: 'Preferências atualizadas', type: NotificationPreferencesSuccessResponseDto })
+  @ApiResponse({ status: 400, description: 'Dados de entrada inválidos', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async updateNotificationPreferences(
     @CurrentUser('sub') userId: string,
     @Body() dto: UpdateNotificationPreferencesDto,
@@ -155,6 +189,9 @@ export class SettingsController {
   @Post('security/change-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Alterar senha' })
+  @ApiResponse({ status: 200, description: 'Senha alterada com sucesso', type: ApiMessageResponseDto })
+  @ApiResponse({ status: 400, description: 'Senhas não conferem ou senha atual incorreta', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async changePassword(
     @CurrentUser('sub') userId: string,
     @Body() dto: ChangePasswordDto,
@@ -170,6 +207,8 @@ export class SettingsController {
 
   @Get('security/sessions')
   @ApiOperation({ summary: 'Listar sessões ativas' })
+  @ApiResponse({ status: 200, description: 'Lista de sessões ativas', type: SessionListSuccessResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   async listSessions(
     @CurrentUser('sub') userId: string,
     @Req() req: Request,
@@ -184,6 +223,10 @@ export class SettingsController {
 
   @Delete('security/sessions/:id')
   @ApiOperation({ summary: 'Revogar uma sessão' })
+  @ApiParam({ name: 'id', description: 'UUID da sessão' })
+  @ApiResponse({ status: 200, description: 'Sessão revogada', type: ApiMessageResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, description: 'Sessão não encontrada', type: ApiErrorResponseDto })
   async revokeSession(
     @Param('id') sessionId: string,
     @CurrentUser('sub') userId: string,

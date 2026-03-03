@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ilike, sql, asc, desc, inArray, type SQL } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
@@ -17,6 +17,7 @@ import {
   servicePhotos,
   serviceProfessionals,
 } from './service.schema.js';
+import type { PaginationQuery } from '../../../../../../common/types/api-response.type.js';
 
 @Injectable()
 export class DrizzleServiceRepository implements ServiceRepositoryPort {
@@ -58,27 +59,74 @@ export class DrizzleServiceRepository implements ServiceRepositoryPort {
     return service;
   }
 
-  async findAllByTenant(tenantId: string): Promise<Service[]> {
+  async findAllByTenant(
+    tenantId: string,
+    pagination: PaginationQuery,
+    filters?: { status?: string; categoryId?: string; search?: string },
+  ): Promise<[Service[], number]> {
+    const { page = 1, limit = 20, sortBy, sortOrder = 'desc' } = pagination;
+    const offset = (page - 1) * limit;
+
+    const conditions: SQL[] = [eq(services.tenantId, tenantId)];
+    if (filters?.status) conditions.push(eq(services.status, filters.status as 'active' | 'inactive' | 'paused'));
+    if (filters?.categoryId) conditions.push(eq(services.categoryId, filters.categoryId));
+    if (filters?.search) {
+      conditions.push(ilike(services.name, `%${filters.search}%`));
+    }
+
+    const whereClause = and(...conditions);
+
+    const [countResult] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(services)
+      .where(whereClause);
+
+    const total = countResult?.count ?? 0;
+
+    const sortColumn = this.getSortColumn(sortBy);
+    const orderFn = sortOrder === 'asc' ? asc : desc;
+
     const rows = await this.db
       .select()
       .from(services)
-      .where(eq(services.tenantId, tenantId))
-      .orderBy(services.createdAt);
+      .where(whereClause)
+      .orderBy(orderFn(sortColumn))
+      .limit(limit)
+      .offset(offset);
 
-    // Load professionals for each service (for list view)
-    const result: Service[] = [];
-    for (const row of rows) {
-      const service = this.toDomain(row);
+    const serviceList = rows.map((row) => this.toDomain(row));
+
+    // Batch load professionals (avoid N+1)
+    if (serviceList.length > 0) {
+      const serviceIds = serviceList.map((s) => s.id);
       const profRows = await this.db
         .select()
         .from(serviceProfessionals)
-        .where(eq(serviceProfessionals.serviceId, service.id));
-      service.setProfessionals(
-        profRows.map((p) => ({ id: p.id, collaboratorId: p.collaboratorId })),
-      );
-      result.push(service);
+        .where(inArray(serviceProfessionals.serviceId, serviceIds));
+
+      const profMap = new Map<string, { id: string; collaboratorId: string | null }[]>();
+      for (const p of profRows) {
+        const list = profMap.get(p.serviceId) ?? [];
+        list.push({ id: p.id, collaboratorId: p.collaboratorId });
+        profMap.set(p.serviceId, list);
+      }
+      for (const service of serviceList) {
+        service.setProfessionals(profMap.get(service.id) ?? []);
+      }
     }
-    return result;
+
+    return [serviceList, total];
+  }
+
+  private getSortColumn(sortBy?: string) {
+    const sortMap: Record<string, any> = {
+      name: services.name,
+      basePrice: services.basePrice,
+      durationMinutes: services.durationMinutes,
+      status: services.status,
+      createdAt: services.createdAt,
+    };
+    return sortMap[sortBy ?? 'createdAt'] ?? services.createdAt;
   }
 
   async update(service: Service): Promise<Service> {

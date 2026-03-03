@@ -6,6 +6,9 @@ import type {
   UpdateCategoryDto,
   CategoryResponseDto,
 } from '../dto/category.dto.js';
+import type { ListCategoriesQueryDto } from '../dto/list-categories-query.dto.js';
+import type { PaginatedResponse } from '../../../../common/types/api-response.type.js';
+import { createPaginatedResponse } from '../../../../common/helpers/paginated-response.helper.js';
 
 @Injectable()
 export class CategoryService {
@@ -30,11 +33,19 @@ export class CategoryService {
 
   async findAll(
     tenantId: string,
-    type?: string,
-  ): Promise<CategoryResponseDto[]> {
-    const validType = type as CategoryType | undefined;
-    const list = await this.categoryRepo.findAllByTenant(tenantId, validType);
-    return list.map((c) => this.toResponse(c));
+    query: ListCategoriesQueryDto,
+  ): Promise<PaginatedResponse<CategoryResponseDto>> {
+    const { page = 1, limit = 20 } = query;
+    const validType = query.type as CategoryType | undefined;
+
+    const [categories, total] = await this.categoryRepo.findAllByTenant(
+      tenantId,
+      { page, limit, sortBy: query.sortBy, sortOrder: query.sortOrder },
+      { type: validType, search: query.search },
+    );
+
+    const data = categories.map((c) => this.toResponse(c));
+    return createPaginatedResponse(data, total, page, limit);
   }
 
   async findById(
