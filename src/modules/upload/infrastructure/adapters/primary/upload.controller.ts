@@ -1,6 +1,7 @@
 import {
   Controller,
   Delete,
+  Inject,
   Param,
   Post,
   UploadedFile,
@@ -17,7 +18,7 @@ import {
   ApiResponse,
   ApiParam,
 } from '@nestjs/swagger';
-import { UploadService } from '../../../application/services/upload.service.js';
+import type { UploadUseCasePort } from '../../../domain/ports/input/upload.usecase.port.js';
 import { UploadSuccessResponseDto, UploadMultipleSuccessResponseDto } from '../../../application/dto/upload-response-wrapper.dto.js';
 import { ApiErrorResponseDto, ApiMessageResponseDto } from '../../../../../common/swagger/api-responses.dto.js';
 import { CurrentTenant } from '../../../../../common/decorators/current-tenant.decorator.js';
@@ -26,7 +27,10 @@ import { CurrentTenant } from '../../../../../common/decorators/current-tenant.d
 @ApiBearerAuth()
 @Controller('uploads')
 export class UploadController {
-  constructor(private readonly uploadService: UploadService) {}
+  constructor(
+    @Inject('UploadUseCasePort')
+    private readonly uploadService: UploadUseCasePort,
+  ) {}
 
   @Post('image')
   @UseInterceptors(FileInterceptor('file'))

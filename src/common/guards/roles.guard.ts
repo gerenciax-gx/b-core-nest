@@ -35,7 +35,14 @@ export class RolesGuard implements CanActivate {
     if (!user) return false;
 
     const userRole = user['role'] as string | undefined;
-    if (!userRole || !requiredRoles.includes(userRole)) {
+    if (!userRole) {
+      throw new ForbiddenException('Acesso negado: permissão insuficiente');
+    }
+
+    // Master tem acesso total a qualquer rota protegida por role
+    if (userRole === 'master') return true;
+
+    if (!requiredRoles.includes(userRole)) {
       throw new ForbiddenException('Acesso negado: permissão insuficiente');
     }
 

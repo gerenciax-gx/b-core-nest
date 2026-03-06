@@ -7,6 +7,11 @@ import { DashboardController } from './infrastructure/adapters/primary/dashboard
 @Module({
   imports: [AuthModule, TenantModule],
   controllers: [DashboardController],
-  providers: [DashboardService],
+  providers: [
+    {
+      provide: 'DashboardUseCasePort',
+      useClass: DashboardService,
+    },
+  ],
 })
 export class DashboardModule {}

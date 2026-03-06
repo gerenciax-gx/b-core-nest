@@ -1,6 +1,6 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
-import { DashboardService } from '../../../application/services/dashboard.service.js';
+import type { DashboardUseCasePort } from '../../../domain/ports/input/dashboard.usecase.port.js';
 import { DashboardSuccessResponseDto } from '../../../application/dto/dashboard-response-wrapper.dto.js';
 import { ApiErrorResponseDto } from '../../../../../common/swagger/api-responses.dto.js';
 import { CurrentUser } from '../../../../../common/decorators/current-user.decorator.js';
@@ -10,7 +10,10 @@ import { CurrentTenant } from '../../../../../common/decorators/current-tenant.d
 @ApiBearerAuth()
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+  constructor(
+    @Inject('DashboardUseCasePort')
+    private readonly dashboardService: DashboardUseCasePort,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Dados do dashboard (resumo geral)' })

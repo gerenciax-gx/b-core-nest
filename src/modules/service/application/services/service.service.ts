@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import type { ServiceUseCasePort } from '../../domain/ports/input/service.usecase.port.js';
 import type { ServiceRepositoryPort } from '../../domain/ports/output/service.repository.port.js';
 import { Service } from '../../domain/entities/service.entity.js';
 import type {
@@ -13,7 +14,7 @@ import type { PaginatedResponse } from '../../../../common/types/api-response.ty
 import { createPaginatedResponse } from '../../../../common/helpers/paginated-response.helper.js';
 
 @Injectable()
-export class ServiceService {
+export class ServiceService implements ServiceUseCasePort {
   constructor(
     @Inject('ServiceRepositoryPort')
     private readonly serviceRepo: ServiceRepositoryPort,

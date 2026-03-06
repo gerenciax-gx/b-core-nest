@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Param,
   Post,
   Put,
@@ -23,8 +24,8 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { SettingsService } from '../../../application/services/settings.service.js';
-import { UploadService } from '../../../../upload/application/services/upload.service.js';
+import type { SettingsUseCasePort } from '../../../domain/ports/input/settings.usecase.port.js';
+import type { UploadUseCasePort } from '../../../../upload/domain/ports/input/upload.usecase.port.js';
 import { UpdatePersonalDto } from '../../../application/dto/update-personal.dto.js';
 import { UpdateCompanyDto } from '../../../application/dto/update-company.dto.js';
 import { ChangePasswordDto } from '../../../application/dto/change-password.dto.js';
@@ -46,8 +47,11 @@ import { CurrentTenant } from '../../../../../common/decorators/current-tenant.d
 @Controller('settings')
 export class SettingsController {
   constructor(
-    private readonly settingsService: SettingsService,
-    private readonly uploadService: UploadService,
+    @Inject('SettingsUseCasePort')
+    private readonly settingsService: SettingsUseCasePort,
+
+    @Inject('UploadUseCasePort')
+    private readonly uploadService: UploadUseCasePort,
   ) {}
 
   // ── Personal ────────────────────────────────────────────

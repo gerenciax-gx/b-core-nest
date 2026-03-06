@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
+import type { SettingsUseCasePort } from '../../domain/ports/input/settings.usecase.port.js';
 import type { UserRepositoryPort } from '../../../auth/domain/ports/output/user.repository.port.js';
 import type { SessionRepositoryPort } from '../../../auth/domain/ports/output/session.repository.port.js';
 import type { TenantRepositoryPort } from '../../../tenant/domain/ports/output/tenant.repository.port.js';
@@ -28,7 +29,7 @@ import type { NotificationPreferencesResponseDto } from '../dto/notification-pre
 const BCRYPT_ROUNDS = 12;
 
 @Injectable()
-export class SettingsService {
+export class SettingsService implements SettingsUseCasePort {
   constructor(
     @Inject('UserRepositoryPort')
     private readonly userRepo: UserRepositoryPort,

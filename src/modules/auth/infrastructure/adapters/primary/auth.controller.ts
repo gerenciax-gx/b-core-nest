@@ -3,13 +3,14 @@ import {
   Controller,
   HttpCode,
   HttpStatus,
+  Inject,
   Post,
   Req,
   Res,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { AuthService } from '../../../application/services/auth.service.js';
+import type { AuthUseCasePort } from '../../../domain/ports/input/auth.usecase.port.js';
 import { SignupDto } from '../../../application/dtos/signup.dto.js';
 import { LoginDto } from '../../../application/dtos/login.dto.js';
 import { ResetPasswordDto } from '../../../application/dtos/reset-password.dto.js';
@@ -23,7 +24,10 @@ const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 dias
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    @Inject('AuthUseCasePort')
+    private readonly authService: AuthUseCasePort,
+  ) {}
 
   @Public()
   @Post('signup')

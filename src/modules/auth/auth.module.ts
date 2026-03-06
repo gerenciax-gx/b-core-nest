@@ -27,7 +27,10 @@ import { DrizzleSessionRepository } from './infrastructure/adapters/secondary/pe
   controllers: [AuthController],
   providers: [
     JwtStrategy,
-    AuthService,
+    {
+      provide: 'AuthUseCasePort',
+      useClass: AuthService,
+    },
     {
       provide: 'UserRepositoryPort',
       useClass: DrizzleUserRepository,
@@ -37,6 +40,6 @@ import { DrizzleSessionRepository } from './infrastructure/adapters/secondary/pe
       useClass: DrizzleSessionRepository,
     },
   ],
-  exports: [AuthService, 'UserRepositoryPort'],
+  exports: ['AuthUseCasePort', 'UserRepositoryPort'],
 })
 export class AuthModule {}

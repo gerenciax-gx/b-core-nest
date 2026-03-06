@@ -29,7 +29,19 @@ export class TenantGuard implements CanActivate {
 
     if (!user) return true; // JwtAuthGuard handles this
 
+    const userRole = user['role'] as string | undefined;
     const tenantId = user['tenantId'] as string | undefined;
+
+    // Master pode operar em qualquer tenant via query param
+    if (userRole === 'master') {
+      const req = context.switchToHttp().getRequest<Record<string, unknown>>();
+      const url = (req['url'] as string) ?? '';
+      const urlParams = new URLSearchParams(url.split('?')[1] ?? '');
+      const targetTenant = urlParams.get('targetTenantId');
+      request['tenantId'] = targetTenant ?? tenantId ?? '';
+      return true;
+    }
+
     if (!tenantId) {
       throw new UnauthorizedException('Token inválido: tenantId ausente');
     }

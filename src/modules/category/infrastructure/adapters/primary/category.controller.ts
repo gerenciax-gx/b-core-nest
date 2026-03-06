@@ -5,13 +5,14 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Param,
   Post,
   Put,
   Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam } from '@nestjs/swagger';
-import { CategoryService } from '../../../application/services/category.service.js';
+import type { CategoryUseCasePort } from '../../../domain/ports/input/category.usecase.port.js';
 import {
   CreateCategoryDto,
   UpdateCategoryDto,
@@ -25,7 +26,10 @@ import { ApiErrorResponseDto, ApiMessageResponseDto } from '../../../../../commo
 @ApiBearerAuth()
 @Controller('categories')
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(
+    @Inject('CategoryUseCasePort')
+    private readonly categoryService: CategoryUseCasePort,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Criar categoria' })

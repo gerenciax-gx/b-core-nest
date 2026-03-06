@@ -5,13 +5,14 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Param,
   Post,
   Put,
   Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam } from '@nestjs/swagger';
-import { ServiceService } from '../../../application/services/service.service.js';
+import type { ServiceUseCasePort } from '../../../domain/ports/input/service.usecase.port.js';
 import {
   CreateServiceDto,
   UpdateServiceDto,
@@ -25,7 +26,10 @@ import { ApiErrorResponseDto, ApiMessageResponseDto } from '../../../../../commo
 @ApiBearerAuth()
 @Controller('services')
 export class ServiceController {
-  constructor(private readonly serviceService: ServiceService) {}
+  constructor(
+    @Inject('ServiceUseCasePort')
+    private readonly serviceService: ServiceUseCasePort,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Criar serviço' })

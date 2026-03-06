@@ -12,7 +12,10 @@ import { DrizzleNotificationPreferencesRepository } from './infrastructure/adapt
   imports: [AuthModule, TenantModule, UploadModule],
   controllers: [SettingsController],
   providers: [
-    SettingsService,
+    {
+      provide: 'SettingsUseCasePort',
+      useClass: SettingsService,
+    },
     {
       provide: 'SessionRepositoryPort',
       useClass: DrizzleSessionRepository,

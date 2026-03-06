@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { DomainException } from '../../../../common/exceptions/domain.exception.js';
 import { Email } from '../value-objects/email.vo.js';
 
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'master' | 'admin' | 'user';
 
 export interface CreateUserProps {
   tenantId: string;
@@ -196,6 +196,10 @@ export class User {
 
   isAdmin(): boolean {
     return this._role === 'admin';
+  }
+
+  isMaster(): boolean {
+    return this._role === 'master';
   }
 
   isCollaboratorUser(): boolean {

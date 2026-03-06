@@ -6,7 +6,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 export interface JwtPayload {
   sub: string;
   tenantId: string;
-  role: 'admin' | 'user';
+  role: 'master' | 'admin' | 'user';
   mustResetPassword: boolean;
 }
 

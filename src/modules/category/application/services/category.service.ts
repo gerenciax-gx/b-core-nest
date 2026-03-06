@@ -1,4 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import type { CategoryUseCasePort } from '../../domain/ports/input/category.usecase.port.js';
 import type { CategoryRepositoryPort } from '../../domain/ports/output/category.repository.port.js';
 import { Category, type CategoryType } from '../../domain/entities/category.entity.js';
 import type {
@@ -11,7 +12,7 @@ import type { PaginatedResponse } from '../../../../common/types/api-response.ty
 import { createPaginatedResponse } from '../../../../common/helpers/paginated-response.helper.js';
 
 @Injectable()
-export class CategoryService {
+export class CategoryService implements CategoryUseCasePort {
   constructor(
     @Inject('CategoryRepositoryPort')
     private readonly categoryRepo: CategoryRepositoryPort,

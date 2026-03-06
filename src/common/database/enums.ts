@@ -1,7 +1,7 @@
 import { pgEnum } from 'drizzle-orm/pg-core';
 
 // ── Auth / User ────────────────────────────────────────────
-export const userRoleEnum = pgEnum('user_role', ['admin', 'user']);
+export const userRoleEnum = pgEnum('user_role', ['master', 'admin', 'user']);
 
 // ── Tenant ─────────────────────────────────────────────────
 export const tenantStatusEnum = pgEnum('tenant_status', [

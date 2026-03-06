@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
+import type { UploadUseCasePort } from '../../domain/ports/input/upload.usecase.port.js';
 import type {
   StoragePort,
   UploadedFile,
@@ -19,7 +20,7 @@ const ALLOWED_MIME_TYPES = [
 ];
 
 @Injectable()
-export class UploadService {
+export class UploadService implements UploadUseCasePort {
   private readonly logger = new Logger(UploadService.name);
 
   constructor(

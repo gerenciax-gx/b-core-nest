@@ -5,13 +5,14 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Param,
   Post,
   Put,
   Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiParam } from '@nestjs/swagger';
-import { ProductService } from '../../../application/services/product.service.js';
+import type { ProductUseCasePort } from '../../../domain/ports/input/product.usecase.port.js';
 import {
   CreateProductDto,
   UpdateProductDto,
@@ -25,7 +26,10 @@ import { ApiErrorResponseDto, ApiMessageResponseDto } from '../../../../../commo
 @ApiBearerAuth()
 @Controller('products')
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(
+    @Inject('ProductUseCasePort')
+    private readonly productService: ProductUseCasePort,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Criar produto' })

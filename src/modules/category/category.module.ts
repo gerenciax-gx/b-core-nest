@@ -7,12 +7,15 @@ import { DrizzleCategoryRepository } from './infrastructure/adapters/secondary/p
   imports: [],
   controllers: [CategoryController],
   providers: [
-    CategoryService,
+    {
+      provide: 'CategoryUseCasePort',
+      useClass: CategoryService,
+    },
     {
       provide: 'CategoryRepositoryPort',
       useClass: DrizzleCategoryRepository,
     },
   ],
-  exports: [CategoryService],
+  exports: ['CategoryUseCasePort'],
 })
 export class CategoryModule {}

@@ -7,12 +7,15 @@ import { DrizzleServiceRepository } from './infrastructure/adapters/secondary/pe
   imports: [],
   controllers: [ServiceController],
   providers: [
-    ServiceService,
+    {
+      provide: 'ServiceUseCasePort',
+      useClass: ServiceService,
+    },
     {
       provide: 'ServiceRepositoryPort',
       useClass: DrizzleServiceRepository,
     },
   ],
-  exports: [ServiceService],
+  exports: ['ServiceUseCasePort'],
 })
 export class ServiceModule {}

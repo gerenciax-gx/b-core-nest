@@ -3,12 +3,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { DashboardUseCasePort } from '../../domain/ports/input/dashboard.usecase.port.js';
 import type { UserRepositoryPort } from '../../../auth/domain/ports/output/user.repository.port.js';
 import type { TenantRepositoryPort } from '../../../tenant/domain/ports/output/tenant.repository.port.js';
 import type { DashboardResponseDto } from '../dto/dashboard-response.dto.js';
 
 @Injectable()
-export class DashboardService {
+export class DashboardService implements DashboardUseCasePort {
   constructor(
     @Inject('UserRepositoryPort')
     private readonly userRepo: UserRepositoryPort,

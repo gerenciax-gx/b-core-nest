@@ -21,6 +21,7 @@ import {
   ForcePasswordResetGuard,
   RolesGuard,
   TenantGuard,
+  SuspensionGuard,
 } from './common/guards/index.js';
 import {
   CorrelationIdMiddleware,
@@ -98,12 +99,13 @@ import { QueueModule } from './modules/queue/queue.module.js';
   controllers: [HealthController],
 
   providers: [
-    // Guard execution order: Throttler → JWT → ForcePasswordReset → Roles → Tenant
+    // Guard execution order: Throttler → JWT → ForcePasswordReset → Roles → Tenant → Suspension
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: ForcePasswordResetGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
+    { provide: APP_GUARD, useClass: SuspensionGuard },
   ],
 })
 export class AppModule implements NestModule {

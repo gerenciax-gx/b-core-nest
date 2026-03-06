@@ -7,12 +7,15 @@ import { DrizzleProductRepository } from './infrastructure/adapters/secondary/pe
   imports: [],
   controllers: [ProductController],
   providers: [
-    ProductService,
+    {
+      provide: 'ProductUseCasePort',
+      useClass: ProductService,
+    },
     {
       provide: 'ProductRepositoryPort',
       useClass: DrizzleProductRepository,
     },
   ],
-  exports: [ProductService],
+  exports: ['ProductUseCasePort'],
 })
 export class ProductModule {}

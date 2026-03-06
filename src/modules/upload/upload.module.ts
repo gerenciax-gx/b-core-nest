@@ -6,12 +6,15 @@ import { SupabaseStorageAdapter } from './infrastructure/adapters/secondary/stor
 @Module({
   controllers: [UploadController],
   providers: [
-    UploadService,
+    {
+      provide: 'UploadUseCasePort',
+      useClass: UploadService,
+    },
     {
       provide: 'StoragePort',
       useClass: SupabaseStorageAdapter,
     },
   ],
-  exports: [UploadService],
+  exports: ['UploadUseCasePort'],
 })
 export class UploadModule {}
