@@ -3,9 +3,8 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-  ForbiddenException,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import type { EventBusPort } from '../../../../common/types/event-bus.port.js';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'node:crypto';
 import type { CollaboratorUseCasePort } from '../../domain/ports/input/collaborator.usecase.port.js';
@@ -17,6 +16,7 @@ import type { CreateCollaboratorDto, UpdateCollaboratorDto, ChangeStatusDto } fr
 import type { ListCollaboratorsQueryDto } from '../dto/list-collaborators-query.dto.js';
 import { createPaginatedResponse } from '../../../../common/helpers/paginated-response.helper.js';
 import type { PaginatedResponse } from '../../../../common/types/api-response.type.js';
+import { TransactionManager } from '../../../../common/database/transaction.helper.js';
 
 @Injectable()
 export class CollaboratorService implements CollaboratorUseCasePort {
@@ -27,20 +27,17 @@ export class CollaboratorService implements CollaboratorUseCasePort {
     @Inject('UserRepositoryPort')
     private readonly userRepo: UserRepositoryPort,
 
-    private readonly eventEmitter: EventEmitter2,
+    @Inject('EventBusPort')
+    private readonly eventBus: EventBusPort,
+
+    private readonly transactionManager: TransactionManager,
   ) {}
 
   // ── Create ────────────────────────────────────────────────
   async create(
     tenantId: string,
-    callerRole: string,
     dto: CreateCollaboratorDto,
   ) {
-    // Apenas admin pode criar colaboradores
-    if (callerRole !== 'admin') {
-      throw new ForbiddenException('Apenas administradores podem criar colaboradores');
-    }
-
     // Verificar email duplicado (global — user table)
     const existingUser = await this.userRepo.findByEmail(dto.email);
     if (existingUser) {
@@ -71,8 +68,6 @@ export class CollaboratorService implements CollaboratorUseCasePort {
       notes: dto.notes,
     });
 
-    await this.collaboratorRepo.save(collaborator);
-
     // Gerar senha temporária (COLLAB-002: randomBytes, retornada 1 vez)
     const temporaryPassword = this.generateTemporaryPassword();
     const passwordHash = await bcrypt.hash(temporaryPassword, 12);
@@ -91,21 +86,28 @@ export class CollaboratorService implements CollaboratorUseCasePort {
       cpf: dto.cpf,
       birthDate: dto.birthDate,
     });
-    await this.userRepo.save(user);
 
-    // Salvar permissões de ferramentas (se não for allToolsAccess)
-    if (dto.toolPermissions?.length && !dto.allToolsAccess) {
-      await this.collaboratorRepo.saveToolPermissions(
-        collaborator.id,
-        dto.toolPermissions,
-      );
-    }
+    // Persistir Collaborator + User + Permissões atomicamente
+    await this.transactionManager.run(async (tx) => {
+      await this.collaboratorRepo.save(collaborator, tx);
+      await this.userRepo.save(user, tx);
+
+      // Salvar permissões de ferramentas (se não for allToolsAccess)
+      if (dto.toolPermissions?.length && !dto.allToolsAccess) {
+        await this.collaboratorRepo.saveToolPermissions(
+          collaborator.id,
+          dto.toolPermissions,
+          tx,
+        );
+      }
+    });
 
     // Emitir evento
-    this.eventEmitter.emit('collaborator.created', {
+    this.eventBus.emit('collaborator.created', {
       collaboratorId: collaborator.id,
       userId: user.id,
       tenantId,
+      temporaryPassword,
     });
 
     // Carregar permissões para response
@@ -263,7 +265,7 @@ export class CollaboratorService implements CollaboratorUseCasePort {
 
     await this.collaboratorRepo.delete(id, tenantId);
 
-    this.eventEmitter.emit('collaborator.deleted', {
+    this.eventBus.emit('collaborator.deleted', {
       collaboratorId: id,
       tenantId,
     });

@@ -17,6 +17,7 @@ export class UserSession {
     public readonly device: string | null,
     public readonly ip: string | null,
     public readonly userAgent: string | null,
+    public readonly isRevoked: boolean,
     public readonly expiresAt: Date,
     public readonly createdAt: Date,
   ) {}
@@ -29,6 +30,7 @@ export class UserSession {
       props.device ?? null,
       props.ip ?? null,
       props.userAgent ?? null,
+      false,
       props.expiresAt,
       new Date(),
     );

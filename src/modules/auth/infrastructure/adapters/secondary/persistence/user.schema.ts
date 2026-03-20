@@ -57,6 +57,7 @@ export const userSessions = pgTable(
     device: varchar('device', { length: 255 }),
     ip: varchar('ip', { length: 45 }),
     userAgent: varchar('user_agent', { length: 500 }),
+    isRevoked: boolean('is_revoked').default(false).notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()

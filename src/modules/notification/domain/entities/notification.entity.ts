@@ -4,6 +4,7 @@ export type NotificationType =
   | 'payment_confirmed'
   | 'payment_overdue'
   | 'subscription_activated'
+  | 'trial_expired'
   | 'tool_new'
   | 'system_maintenance'
   | 'stock_alert';

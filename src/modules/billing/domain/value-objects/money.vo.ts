@@ -27,7 +27,8 @@ export class Money {
   }
 
   subtract(other: Money): Money {
-    return Money.create(this._amount - other._amount);
+    const result = this._amount - other._amount;
+    return result <= 0 ? Money.zero() : Money.create(result);
   }
 
   multiply(factor: number): Money {

@@ -8,6 +8,7 @@ import {
   numeric,
   timestamp,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { serviceStatusEnum } from '../../../../../../common/database/enums.js';
 import { tenants } from '../../../../../tenant/infrastructure/adapters/secondary/persistence/tenant.schema.js';
@@ -112,6 +113,7 @@ export const serviceProfessionals = pgTable(
     index('idx_service_professionals_collaborator_id').on(
       table.collaboratorId,
     ),
+    uniqueIndex('uq_service_professionals').on(table.serviceId, table.collaboratorId),
   ],
 );
 

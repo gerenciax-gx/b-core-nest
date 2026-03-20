@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
+import type { DbClient } from '../../../../../../common/database/transaction.helper.js';
 import type {
   PaymentLogRepositoryPort,
   PaymentLogEntry,
@@ -16,8 +17,9 @@ export class DrizzlePaymentLogRepository implements PaymentLogRepositoryPort {
     private readonly db: NodePgDatabase,
   ) {}
 
-  async save(entry: PaymentLogEntry): Promise<void> {
-    await this.db.insert(paymentLogs).values({
+  async save(entry: PaymentLogEntry, tx?: DbClient): Promise<void> {
+    const db = tx ?? this.db;
+    await db.insert(paymentLogs).values({
       id: randomUUID(),
       invoiceId: entry.invoiceId,
       gateway: entry.gateway,
@@ -46,5 +48,26 @@ export class DrizzlePaymentLogRepository implements PaymentLogRepositoryPort {
       amount: parseFloat(r.amount),
       rawPayload: r.rawPayload,
     }));
+  }
+
+  async findByExternalId(externalId: string, tx?: DbClient): Promise<PaymentLogEntry | null> {
+    const db = tx ?? this.db;
+    const rows = await db
+      .select()
+      .from(paymentLogs)
+      .where(eq(paymentLogs.externalId, externalId))
+      .limit(1);
+
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      invoiceId: row.invoiceId,
+      gateway: row.gateway,
+      method: row.method,
+      externalId: row.externalId,
+      status: row.status,
+      amount: parseFloat(row.amount),
+      rawPayload: row.rawPayload,
+    };
   }
 }

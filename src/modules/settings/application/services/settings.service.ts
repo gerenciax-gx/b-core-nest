@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { EventBusPort } from '../../../../common/types/event-bus.port.js';
 import { randomUUID } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import type { SettingsUseCasePort } from '../../domain/ports/input/settings.usecase.port.js';
@@ -13,6 +14,7 @@ import type { SessionRepositoryPort } from '../../../auth/domain/ports/output/se
 import type { TenantRepositoryPort } from '../../../tenant/domain/ports/output/tenant.repository.port.js';
 import type { UserSettingsRepositoryPort } from '../../domain/ports/output/user-settings.repository.port.js';
 import type { NotificationPreferencesRepositoryPort } from '../../domain/ports/output/notification-preferences.repository.port.js';
+import type { PrivacyDataRepositoryPort } from '../../domain/ports/output/privacy-data.repository.port.js';
 import { UserSettings } from '../../domain/entities/user-settings.entity.js';
 import { NotificationPreferences } from '../../domain/entities/notification-preferences.entity.js';
 import { Password } from '../../../auth/domain/value-objects/password.vo.js';
@@ -25,6 +27,8 @@ import type { CompanyResponseDto } from '../dto/company-response.dto.js';
 import type { SessionResponseDto } from '../dto/session-response.dto.js';
 import type { AppearanceResponseDto } from '../dto/appearance-response.dto.js';
 import type { NotificationPreferencesResponseDto } from '../dto/notification-preferences-response.dto.js';
+import type { PrivacyExportResponseDto } from '../dto/privacy-export-response.dto.js';
+import { TransactionManager } from '../../../../common/database/transaction.helper.js';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -45,6 +49,14 @@ export class SettingsService implements SettingsUseCasePort {
 
     @Inject('NotificationPreferencesRepositoryPort')
     private readonly notifPrefsRepo: NotificationPreferencesRepositoryPort,
+
+    @Inject('PrivacyDataRepositoryPort')
+    private readonly privacyDataRepo: PrivacyDataRepositoryPort,
+
+    @Inject('EventBusPort')
+    private readonly eventBus: EventBusPort,
+
+    private readonly transactionManager: TransactionManager,
   ) {}
 
   // ── Personal ────────────────────────────────────────────
@@ -411,5 +423,109 @@ export class SettingsService implements SettingsUseCasePort {
     }
 
     await this.sessionRepo.deleteByRefreshToken(target.refreshToken);
+  }
+
+  // ── Privacy: Data Export (LGPD) ─────────────────────────
+
+  async exportUserData(
+    userId: string,
+    tenantId: string,
+  ): Promise<PrivacyExportResponseDto> {
+    const user = await this.userRepo.findById(userId);
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+
+    const [tenantData, settingsData, notifPrefs] = await Promise.all([
+      this.privacyDataRepo.exportTenantData(tenantId),
+      this.userSettingsRepo.findByUserId(userId),
+      this.notifPrefsRepo.findByUserId(userId),
+    ]);
+
+    return {
+      exportedAt: new Date().toISOString(),
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        cpf: user.cpf,
+        birthDate: user.birthDate,
+        avatarUrl: user.avatarUrl,
+        createdAt: user.createdAt.toISOString(),
+      },
+      company: tenantData.company,
+      settings: settingsData
+        ? {
+            theme: settingsData.theme,
+            language: settingsData.language,
+            fontSize: settingsData.fontSize,
+            compactMode: settingsData.compactMode,
+          }
+        : {},
+      notificationPreferences: notifPrefs
+        ? {
+            emailNotifications: notifPrefs.emailNotifications,
+            pushNotifications: notifPrefs.pushNotifications,
+            smsNotifications: notifPrefs.smsNotifications,
+            orderUpdates: notifPrefs.orderUpdates,
+            promotions: notifPrefs.promotions,
+            securityAlerts: notifPrefs.securityAlerts,
+            systemUpdates: notifPrefs.systemUpdates,
+          }
+        : {},
+      categories: tenantData.categories,
+      products: tenantData.products,
+      services: tenantData.services,
+      collaborators: tenantData.collaborators,
+      notifications: tenantData.notifications,
+      invoices: tenantData.invoices,
+      subscriptions: tenantData.subscriptions,
+    };
+  }
+
+  // ── Privacy: Delete Account (LGPD) ─────────────────────
+
+  async deleteAccount(
+    userId: string,
+    tenantId: string,
+    password: string,
+    confirmation: string,
+  ): Promise<void> {
+    if (confirmation !== 'DELETAR MINHA CONTA') {
+      throw new BadRequestException(
+        'Texto de confirmação incorreto. Digite: DELETAR MINHA CONTA',
+      );
+    }
+
+    const user = await this.userRepo.findById(userId);
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+
+    const isValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isValid) {
+      throw new BadRequestException('Senha incorreta');
+    }
+
+    // Executar deleção atomicamente
+    await this.transactionManager.run(async (tx) => {
+      // 1. Revoke all sessions
+      await this.sessionRepo.deleteAllByUserId(userId, tx);
+
+      // 2. Anonymize fiscal records (invoices kept for 5 years)
+      await this.privacyDataRepo.anonymizeInvoices(tenantId, tx);
+
+      // 3. Delete non-fiscal tenant data
+      await this.privacyDataRepo.deleteTenantData(tenantId, tx);
+
+      // 4. Delete user settings + notification preferences (cascade via FK)
+      // 5. Delete user account
+      await this.userRepo.delete(userId, tx);
+    });
+
+    // 6. Emit event for downstream listeners
+    this.eventBus.emit('account.deleted', {
+      userId,
+      tenantId,
+      deletedAt: new Date().toISOString(),
+    });
   }
 }

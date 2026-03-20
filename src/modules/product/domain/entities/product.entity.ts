@@ -167,7 +167,12 @@ export class Product {
       }
       this._name = data.name.trim();
     }
-    if (data.sku !== undefined) this._sku = data.sku.trim();
+    if (data.sku !== undefined) {
+      if (data.sku.trim().length < 1) {
+        throw new DomainException('SKU não pode ser vazio');
+      }
+      this._sku = data.sku.trim();
+    }
     if (data.description !== undefined) this._description = data.description?.trim() ?? null;
     if (data.categoryId !== undefined) this._categoryId = data.categoryId ?? null;
     if (data.basePrice !== undefined) {
@@ -175,7 +180,10 @@ export class Product {
       this._basePrice = data.basePrice;
     }
     if (data.costPrice !== undefined) this._costPrice = data.costPrice ?? null;
-    if (data.stock !== undefined) this._stock = data.stock;
+    if (data.stock !== undefined) {
+      if (data.stock < 0) throw new DomainException('Estoque não pode ser negativo');
+      this._stock = data.stock;
+    }
     if (data.minStock !== undefined) this._minStock = data.minStock;
     if (data.maxStock !== undefined) this._maxStock = data.maxStock ?? null;
     if (data.stockAlert !== undefined) this._stockAlert = data.stockAlert;

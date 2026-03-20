@@ -8,6 +8,7 @@ import {
   numeric,
   timestamp,
   index,
+  uniqueIndex,
   jsonb,
 } from 'drizzle-orm/pg-core';
 import {
@@ -57,6 +58,7 @@ export const products = pgTable(
     index('idx_products_category_id').on(table.categoryId),
     index('idx_products_sku').on(table.sku),
     index('idx_products_status').on(table.status),
+    uniqueIndex('uq_products_tenant_sku').on(table.tenantId, table.sku),
   ],
 );
 
@@ -82,7 +84,10 @@ export const productVariations = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (table) => [index('idx_product_variations_product_id').on(table.productId)],
+  (table) => [
+    index('idx_product_variations_product_id').on(table.productId),
+    uniqueIndex('uq_product_variations_product_sku').on(table.productId, table.sku),
+  ],
 );
 
 // ── Product Photos ────────────────────────────────────────

@@ -7,6 +7,7 @@ import { SettingsController } from './infrastructure/adapters/primary/settings.c
 import { DrizzleSessionRepository } from '../auth/infrastructure/adapters/secondary/persistence/drizzle-session.repository.js';
 import { DrizzleUserSettingsRepository } from './infrastructure/adapters/secondary/persistence/drizzle-user-settings.repository.js';
 import { DrizzleNotificationPreferencesRepository } from './infrastructure/adapters/secondary/persistence/drizzle-notification-preferences.repository.js';
+import { DrizzlePrivacyDataRepository } from './infrastructure/adapters/secondary/persistence/drizzle-privacy-data.repository.js';
 
 @Module({
   imports: [AuthModule, TenantModule, UploadModule],
@@ -27,6 +28,10 @@ import { DrizzleNotificationPreferencesRepository } from './infrastructure/adapt
     {
       provide: 'NotificationPreferencesRepositoryPort',
       useClass: DrizzleNotificationPreferencesRepository,
+    },
+    {
+      provide: 'PrivacyDataRepositoryPort',
+      useClass: DrizzlePrivacyDataRepository,
     },
   ],
 })

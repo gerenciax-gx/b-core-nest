@@ -6,7 +6,11 @@ import {
   IsInt,
   IsArray,
   IsIn,
+  IsUUID,
+  IsBoolean,
+  IsUrl,
   MinLength,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -15,8 +19,7 @@ import { Type } from 'class-transformer';
 // ── Nested DTOs ─────────────────────────────────────────────
 
 export class PriceVariationDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
-  @ApiProperty({ example: 'Corte + Barba' }) @IsString() name!: string;
+  @ApiProperty({ example: 'Corte + Barba' }) @IsString() @MaxLength(255) name!: string;
   @ApiProperty({ example: 60 }) @IsNumber() price!: number;
   @ApiProperty({ example: 45 }) @IsInt() @Min(1) durationMinutes!: number;
   @ApiPropertyOptional({ example: 40 }) @IsOptional() @IsInt() durationMinMinutes?: number;
@@ -25,14 +28,14 @@ export class PriceVariationDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(500, { each: true })
   photos?: string[];
 }
 
 export class ServicePhotoDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
-  @ApiProperty({ example: 'https://cdn.example.com/photo.jpg' }) @IsString() url!: string;
-  @ApiPropertyOptional() @IsOptional() isMain?: boolean;
-  @ApiPropertyOptional() @IsOptional() @IsInt() order?: number;
+  @ApiProperty({ example: 'https://cdn.example.com/photo.jpg' }) @IsUrl({}, { message: 'url deve ser uma URL válida' }) url!: string;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isMain?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsInt() sortOrder?: number;
 }
 
 // ── Create ──────────────────────────────────────────────────
@@ -41,16 +44,18 @@ export class CreateServiceDto {
   @ApiProperty({ example: 'Corte de Cabelo Masculino' })
   @IsString()
   @MinLength(2)
+  @MaxLength(255)
   name!: string;
 
   @ApiPropertyOptional({ example: 'Corte tradicional com acabamento' })
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   description?: string;
 
   @ApiPropertyOptional({ example: 'uuid-category', description: 'Category ID or name' })
   @IsOptional()
-  @IsString()
+  @IsUUID()
   category?: string; // categoryId — frontend sends 'category'
 
   @ApiProperty({ example: 45.0 })
@@ -80,13 +85,14 @@ export class CreateServiceDto {
   @ApiPropertyOptional({ example: ['uuid-professional-1'] })
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
+  @IsUUID('4', { each: true })
   professionalIds?: string[];
 
   @ApiPropertyOptional({ example: ['https://cdn.example.com/photo1.jpg'], description: 'Alternative: photo URLs as strings' })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(500, { each: true })
   photoUrls?: string[];
 }
 

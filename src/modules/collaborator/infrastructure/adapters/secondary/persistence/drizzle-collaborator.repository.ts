@@ -1,8 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { eq, and, ilike, sql, asc, desc, type SQL } from 'drizzle-orm';
+import { escapeLikePattern } from '../../../../../../common/utils/sql.util.js';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
 import type { CollaboratorRepositoryPort } from '../../../../domain/ports/output/collaborator.repository.port.js';
+import type { DbClient } from '../../../../../../common/database/transaction.helper.js';
 import {
   Collaborator,
   type CollaboratorStatus,
@@ -24,8 +26,9 @@ export class DrizzleCollaboratorRepository implements CollaboratorRepositoryPort
     private readonly db: NodePgDatabase,
   ) {}
 
-  async save(collaborator: Collaborator): Promise<Collaborator> {
-    await this.db.insert(collaborators).values({
+  async save(collaborator: Collaborator, tx?: DbClient): Promise<Collaborator> {
+    const db = tx ?? this.db;
+    await db.insert(collaborators).values({
       id: collaborator.id,
       tenantId: collaborator.tenantId,
       firstName: collaborator.firstName,
@@ -120,7 +123,8 @@ export class DrizzleCollaboratorRepository implements CollaboratorRepositoryPort
 
     if (filters?.search) {
       conditions.push(
-        sql`(${ilike(collaborators.firstName, `%${filters.search}%`)} OR ${ilike(collaborators.lastName, `%${filters.search}%`)} OR ${ilike(collaborators.email, `%${filters.search}%`)})`,
+        sql`(${ilike(collaborators.firstName, `%${escapeLikePattern(filters.search)}%`)} OR ${ilike(collaborators.lastName, `%${escapeLikePattern(filters.search)}%`)} OR ${ilike(collaborators.email, `%${escapeLikePattern(filters.search)}%`)})`,
+
       );
     }
 
@@ -190,14 +194,16 @@ export class DrizzleCollaboratorRepository implements CollaboratorRepositoryPort
   async saveToolPermissions(
     collaboratorId: string,
     permissions: { toolId: string; hasAccess: boolean }[],
+    tx?: DbClient,
   ): Promise<void> {
+    const db = tx ?? this.db;
     // Delete existing then insert new
-    await this.db
+    await db
       .delete(collaboratorToolPermissions)
       .where(eq(collaboratorToolPermissions.collaboratorId, collaboratorId));
 
     if (permissions.length > 0) {
-      await this.db.insert(collaboratorToolPermissions).values(
+      await db.insert(collaboratorToolPermissions).values(
         permissions.map((p) => ({
           collaboratorId,
           toolId: p.toolId,

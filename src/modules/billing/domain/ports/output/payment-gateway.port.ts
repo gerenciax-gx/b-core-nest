@@ -25,6 +25,7 @@ export interface ChargeResult {
   pixQrCodeBase64?: string;
   pixCopyPaste?: string;
   creditCardToken?: string;
+  creditCardBrand?: string;
 }
 
 export interface CreateCustomerInput {
@@ -45,6 +46,7 @@ export interface CreateCustomerInput {
 
 export interface PaymentGatewayPort {
   createCustomer(input: CreateCustomerInput): Promise<{ id: string }>;
+  updateCustomer(customerId: string, input: CreateCustomerInput): Promise<void>;
   createCharge(input: CreateChargeInput): Promise<ChargeResult>;
   getCharge(chargeId: string): Promise<ChargeResult>;
   refundCharge(chargeId: string): Promise<void>;

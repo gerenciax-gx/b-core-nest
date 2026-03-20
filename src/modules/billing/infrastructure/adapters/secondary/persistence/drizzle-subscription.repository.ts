@@ -1,7 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, and, lte } from 'drizzle-orm';
+import { eq, and, lte, inArray } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
+import type { DbClient } from '../../../../../../common/database/transaction.helper.js';
 import type { SubscriptionRepositoryPort } from '../../../../domain/ports/output/subscription.repository.port.js';
 import {
   Subscription,
@@ -42,6 +43,7 @@ export class DrizzleSubscriptionRepository
         | null,
       createdAt: subscription.createdAt,
       updatedAt: subscription.updatedAt,
+      trialEndsAt: subscription.trialEndsAt,
     });
     return subscription;
   }
@@ -74,7 +76,7 @@ export class DrizzleSubscriptionRepository
       .where(
         and(
           eq(subscriptions.tenantId, tenantId),
-          eq(subscriptions.status, 'active'),
+          inArray(subscriptions.status, ['active', 'trialing']),
         ),
       );
 
@@ -95,8 +97,23 @@ export class DrizzleSubscriptionRepository
     return rows.map((r) => this.toDomain(r));
   }
 
-  async update(subscription: Subscription): Promise<Subscription> {
-    await this.db
+  async findExpiredTrials(): Promise<Subscription[]> {
+    const rows = await this.db
+      .select()
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.status, 'trialing'),
+          lte(subscriptions.trialEndsAt, new Date()),
+        ),
+      );
+
+    return rows.map((r) => this.toDomain(r));
+  }
+
+  async update(subscription: Subscription, tx?: DbClient): Promise<Subscription> {
+    const db = tx ?? this.db;
+    await db
       .update(subscriptions)
       .set({
         status: subscription.status,
@@ -116,6 +133,7 @@ export class DrizzleSubscriptionRepository
           | 'debit_card'
           | null,
         updatedAt: new Date(),
+        trialEndsAt: subscription.trialEndsAt,
       })
       .where(eq(subscriptions.id, subscription.id));
 
@@ -141,6 +159,7 @@ export class DrizzleSubscriptionRepository
       row.cardLast4,
       row.cardBrand,
       row.preferredPaymentMethod,
+      row.trialEndsAt,
       row.createdAt,
       row.updatedAt,
     );

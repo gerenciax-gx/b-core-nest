@@ -23,6 +23,9 @@ import { invoices } from '../../modules/billing/infrastructure/adapters/secondar
 @Injectable()
 export class SuspensionGuard implements CanActivate {
   private static readonly SUSPENSION_DAYS = 3;
+  private static readonly CACHE_TTL = 60_000; // 60 seconds
+
+  private readonly cache = new Map<string, { suspended: boolean; at: number }>();
 
   constructor(
     private readonly reflector: Reflector,
@@ -43,7 +46,8 @@ export class SuspensionGuard implements CanActivate {
       .switchToHttp()
       .getRequest<Record<string, unknown>>();
     const url = (request['url'] as string) ?? '';
-    if (url.includes('/billing') || url.includes('/auth')) {
+    const pathname = url.split('?')[0];
+    if (pathname.includes('/billing') || pathname.includes('/auth')) {
       return true;
     }
 
@@ -54,6 +58,17 @@ export class SuspensionGuard implements CanActivate {
 
     const tenantId = user?.['tenantId'] as string | undefined;
     if (!tenantId) return true; // JwtAuthGuard / TenantGuard will handle
+
+    // Check in-memory cache first
+    const cached = this.cache.get(tenantId);
+    if (cached && Date.now() - cached.at < SuspensionGuard.CACHE_TTL) {
+      if (cached.suspended) {
+        throw new ForbiddenException(
+          'Acesso bloqueado: você possui faturas em atraso há mais de 3 dias. Regularize no painel de billing.',
+        );
+      }
+      return true;
+    }
 
     // Consulta leve: existe fatura overdue com 3+ dias?
     const rows = await this.db
@@ -68,7 +83,12 @@ export class SuspensionGuard implements CanActivate {
       );
 
     const overdueCount = rows[0]?.count ?? 0;
-    if (overdueCount > 0) {
+    const suspended = overdueCount > 0;
+
+    // Cache the result
+    this.cache.set(tenantId, { suspended, at: Date.now() });
+
+    if (suspended) {
       throw new ForbiddenException(
         'Acesso bloqueado: você possui faturas em atraso há mais de 3 dias. Regularize no painel de billing.',
       );

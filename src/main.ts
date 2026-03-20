@@ -6,9 +6,6 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 
 import { AppModule } from './app.module.js';
-import { GlobalExceptionFilter } from './common/filters/index.js';
-import { ResponseInterceptor } from './common/interceptors/index.js';
-import { ValidationPipe } from './common/pipes/index.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -31,7 +28,7 @@ async function bootstrap(): Promise<void> {
 
   // ── CORS ───────────────────────────────────────────────────
   app.enableCors({
-    origin: corsOrigins,
+    origin: corsOrigins.map((o) => o.trim()).filter(Boolean),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -41,6 +38,7 @@ async function bootstrap(): Promise<void> {
       'x-client-type',
       'x-tenant-id',
     ],
+    maxAge: 86400,
   });
 
   // ── Global prefix ─────────────────────────────────────────
@@ -48,10 +46,7 @@ async function bootstrap(): Promise<void> {
     exclude: ['health'],
   });
 
-  // ── Global pipes, filters, interceptors ────────────────────
-  app.useGlobalPipes(new ValidationPipe());
-  app.useGlobalFilters(new GlobalExceptionFilter());
-  app.useGlobalInterceptors(new ResponseInterceptor());
+  // ── Global pipes, filters, interceptors (registered via DI in AppModule) ──
 
   // ── Swagger (non-production only) ──────────────────────────
   if (nodeEnv !== 'prod') {
@@ -76,6 +71,7 @@ async function bootstrap(): Promise<void> {
   }
 
   // ── Start ──────────────────────────────────────────────────
+  app.enableShutdownHooks();
   await app.listen(port);
 
   const logger = app.get(Logger);

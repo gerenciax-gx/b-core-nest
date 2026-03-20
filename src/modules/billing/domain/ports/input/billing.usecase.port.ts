@@ -13,9 +13,9 @@ export interface AsaasWebhookPayload {
   payment: {
     id: string;
     status: string;
-    confirmedDate: string;
+    confirmedDate?: string;
     value: number;
-    externalReference: string;
+    externalReference?: string;
   };
 }
 
@@ -111,6 +111,8 @@ export interface BillingUseCasePort {
     subscriptionId: string,
     reason: string,
   ): Promise<void>;
+
+  generateInvoicePdf(tenantId: string, invoiceId: string): Promise<Buffer>;
 
   getBillingInfo(tenantId: string): Promise<BillingInfoSummary | null>;
 

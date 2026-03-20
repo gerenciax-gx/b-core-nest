@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq, and, lte, sql, desc } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
+import type { DbClient } from '../../../../../../common/database/transaction.helper.js';
 import type {
   InvoiceRepositoryPort,
   InvoiceFilters,
@@ -36,6 +37,8 @@ export class DrizzleInvoiceRepository implements InvoiceRepositoryPort {
       pixCopyPaste: invoice.pixCopyPaste,
       boletoUrl: invoice.boletoUrl,
       boletoBarcode: invoice.boletoBarcode,
+      retryCount: invoice.retryCount,
+      lastRetryAt: invoice.lastRetryAt,
       referenceMonth: invoice.referenceMonth,
       createdAt: invoice.createdAt,
       updatedAt: invoice.updatedAt,
@@ -197,8 +200,23 @@ export class DrizzleInvoiceRepository implements InvoiceRepositoryPort {
     return rows.map((r) => this.toDomain(r));
   }
 
-  async update(invoice: Invoice): Promise<Invoice> {
-    await this.db
+  async findOverdueForRetry(maxRetries: number): Promise<Invoice[]> {
+    const rows = await this.db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.status, 'overdue'),
+          sql`${invoices.retryCount} < ${maxRetries}`,
+        ),
+      );
+
+    return rows.map((r) => this.toDomain(r));
+  }
+
+  async update(invoice: Invoice, tx?: DbClient): Promise<Invoice> {
+    const db = tx ?? this.db;
+    await db
       .update(invoices)
       .set({
         status: invoice.status,
@@ -210,9 +228,24 @@ export class DrizzleInvoiceRepository implements InvoiceRepositoryPort {
         pixCopyPaste: invoice.pixCopyPaste,
         boletoUrl: invoice.boletoUrl,
         boletoBarcode: invoice.boletoBarcode,
+        retryCount: invoice.retryCount,
+        lastRetryAt: invoice.lastRetryAt,
         updatedAt: new Date(),
       })
       .where(eq(invoices.id, invoice.id));
+
+    // Persist items: delete existing + re-insert
+    await db.delete(invoiceItems).where(eq(invoiceItems.invoiceId, invoice.id));
+    for (const item of invoice.items) {
+      await db.insert(invoiceItems).values({
+        id: item.id,
+        invoiceId: invoice.id,
+        description: item.description,
+        unitPrice: item.unitPrice.amount.toString(),
+        quantity: item.quantity,
+        totalPrice: item.totalPrice.amount.toString(),
+      });
+    }
 
     return invoice;
   }
@@ -255,6 +288,8 @@ export class DrizzleInvoiceRepository implements InvoiceRepositoryPort {
       row.pixCopyPaste,
       row.boletoUrl,
       row.boletoBarcode,
+      row.retryCount,
+      row.lastRetryAt,
       row.referenceMonth,
       row.createdAt,
       row.updatedAt,

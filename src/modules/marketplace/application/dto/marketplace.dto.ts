@@ -32,9 +32,6 @@ export class ToolPlanResponseDto {
   @ApiProperty({ example: 'monthly' })
   interval!: string;
 
-  @ApiProperty({ example: 0 })
-  trialDays!: number;
-
   @ApiProperty({ example: false })
   isPopular!: boolean;
 
@@ -77,6 +74,9 @@ export class ToolResponseDto {
   @ApiProperty({ example: true })
   isActive!: boolean;
 
+  @ApiProperty({ example: 0 })
+  trialDays!: number;
+
   @ApiProperty({ example: '2025-01-01T00:00:00.000Z' })
   createdAt!: string;
 
@@ -109,6 +109,9 @@ export class ToolDetailResponseDto {
 
   @ApiProperty({ example: true })
   isActive!: boolean;
+
+  @ApiProperty({ example: 0 })
+  trialDays!: number;
 
   @ApiProperty({ example: false })
   isSubscribed!: boolean;

@@ -13,9 +13,9 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
  */
 @Injectable()
 export class ForcePasswordResetGuard implements CanActivate {
-  private readonly allowedPaths = [
-    '/api/v1/auth/reset-password',
-    '/api/v1/auth/logout',
+  private readonly allowedSuffixes = [
+    '/auth/reset-password',
+    '/auth/logout',
   ];
 
   constructor(private readonly reflector: Reflector) {}
@@ -39,7 +39,7 @@ export class ForcePasswordResetGuard implements CanActivate {
     if (!mustResetPassword) return true;
 
     const path = (request['path'] as string) ?? '';
-    if (this.allowedPaths.some((allowed) => path.startsWith(allowed))) {
+    if (this.allowedSuffixes.some((suffix) => path.endsWith(suffix))) {
       return true;
     }
 

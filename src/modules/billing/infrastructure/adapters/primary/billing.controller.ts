@@ -7,8 +7,11 @@ import {
   Param,
   Query,
   Inject,
+  Res,
+  Header,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -65,7 +68,7 @@ export class BillingController {
 
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const totalPages = Math.ceil(result.total / limit);
+    const totalPages = limit > 0 ? Math.ceil(result.total / limit) : 0;
 
     return {
       success: true,
@@ -98,6 +101,27 @@ export class BillingController {
   ) {
     const data = await this.billingService.getInvoiceById(tenantId, id);
     return { success: true, data };
+  }
+
+  // ── GET /billing/invoices/:id/pdf ──────────────────────────
+  @Get('invoices/:id/pdf')
+  @ApiOperation({ summary: 'Baixar PDF da fatura' })
+  @ApiParam({ name: 'id', description: 'UUID da fatura' })
+  @ApiResponse({ status: 200, description: 'PDF da fatura' })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, description: 'Fatura não encontrada', type: ApiErrorResponseDto })
+  @Header('Content-Type', 'application/pdf')
+  async downloadInvoicePdf(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.billingService.generateInvoicePdf(tenantId, id);
+    res.set({
+      'Content-Disposition': `attachment; filename="fatura-${id.substring(0, 8)}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+    res.end(pdfBuffer);
   }
 
   // ── POST /billing/invoices/:id/pay ─────────────────────────

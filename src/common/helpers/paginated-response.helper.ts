@@ -6,7 +6,7 @@ export function createPaginatedResponse<T>(
   page: number,
   limit: number,
 ): PaginatedResponse<T> {
-  const totalPages = Math.ceil(total / limit);
+  const totalPages = limit > 0 ? Math.ceil(total / limit) : 0;
   return {
     success: true,
     data,

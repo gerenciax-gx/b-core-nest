@@ -1,4 +1,4 @@
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { createParamDecorator, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Request } from 'express';
 
 export const CurrentTenant = createParamDecorator(
@@ -9,8 +9,8 @@ export const CurrentTenant = createParamDecorator(
     ] as string | undefined;
 
     if (!tenantId) {
-      throw new Error(
-        'tenantId not found on request. Ensure TenantGuard is active.',
+      throw new UnauthorizedException(
+        'Token inválido: tenantId ausente',
       );
     }
 

@@ -10,7 +10,7 @@ export function buildPaginationMeta(
     total,
     page,
     limit,
-    totalPages: Math.ceil(total / limit) || 1,
+    totalPages: limit > 0 ? Math.ceil(total / limit) : 0,
   };
 }
 

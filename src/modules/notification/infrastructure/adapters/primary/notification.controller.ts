@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Inject,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -46,9 +47,9 @@ export class NotificationController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Listar notificações (paginado)' })
-  @ApiResponse({ status: 200, description: 'Lista paginada de notificações', type: NotificationPaginatedResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiOperation({ summary: 'Listar notificaÃ§Ãµes (paginado)' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de notificaÃ§Ãµes', type: NotificationPaginatedResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async findAll(
     @CurrentTenant() tenantId: string,
     @Query() query: ListNotificationsQueryDto,
@@ -58,9 +59,9 @@ export class NotificationController {
 
   @Post('broadcast')
   @Roles('master')
-  @ApiOperation({ summary: 'Enviar notificação para todos os tenants ativos (master only)' })
-  @ApiResponse({ status: 201, description: 'Notificações enviadas', type: NotificationBulkUpdateResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiOperation({ summary: 'Enviar notificaÃ§Ã£o para todos os tenants ativos (master only)' })
+  @ApiResponse({ status: 201, description: 'NotificaÃ§Ãµes enviadas', type: NotificationBulkUpdateResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   @ApiResponse({ status: 403, description: 'Apenas administradores', type: ApiErrorResponseDto })
   async broadcast(@Body() dto: BroadcastNotificationDto) {
     const data = await this.notificationService.broadcast(dto);
@@ -68,71 +69,71 @@ export class NotificationController {
   }
 
   @Get('unread-count')
-  @ApiOperation({ summary: 'Obter quantidade de notificações não lidas' })
-  @ApiResponse({ status: 200, description: 'Contagem de não lidas', type: NotificationCountResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiOperation({ summary: 'Obter quantidade de notificaÃ§Ãµes nÃ£o lidas' })
+  @ApiResponse({ status: 200, description: 'Contagem de nÃ£o lidas', type: NotificationCountResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async getUnreadCount(@CurrentTenant() tenantId: string) {
     const data = await this.notificationService.getUnreadCount(tenantId);
     return { success: true, data };
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Obter notificação por ID' })
-  @ApiParam({ name: 'id', description: 'UUID da notificação' })
-  @ApiResponse({ status: 200, description: 'Notificação encontrada', type: NotificationSuccessResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 404, description: 'Notificação não encontrada', type: ApiErrorResponseDto })
+  @ApiOperation({ summary: 'Obter notificaÃ§Ã£o por ID' })
+  @ApiParam({ name: 'id', description: 'UUID da notificaÃ§Ã£o' })
+  @ApiResponse({ status: 200, description: 'NotificaÃ§Ã£o encontrada', type: NotificationSuccessResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, description: 'NotificaÃ§Ã£o nÃ£o encontrada', type: ApiErrorResponseDto })
   async findById(
     @CurrentTenant() tenantId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     const data = await this.notificationService.findById(tenantId, id);
     return { success: true, data };
   }
 
-  @Patch(':id/read')
-  @ApiOperation({ summary: 'Marcar notificação como lida' })
-  @ApiParam({ name: 'id', description: 'UUID da notificação' })
-  @ApiResponse({ status: 200, description: 'Notificação marcada como lida', type: NotificationSuccessResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 404, description: 'Notificação não encontrada', type: ApiErrorResponseDto })
-  async markAsRead(
-    @CurrentTenant() tenantId: string,
-    @Param('id') id: string,
-  ) {
-    const data = await this.notificationService.markAsRead(tenantId, id);
-    return { success: true, data };
-  }
-
   @Patch('mark-all-read')
-  @ApiOperation({ summary: 'Marcar todas as notificações como lidas' })
+  @ApiOperation({ summary: 'Marcar todas as notificaÃ§Ãµes como lidas' })
   @ApiResponse({ status: 200, description: 'Todas marcadas como lidas', type: NotificationBulkUpdateResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async markAllAsRead(@CurrentTenant() tenantId: string) {
     const data = await this.notificationService.markAllAsRead(tenantId);
     return { success: true, data };
   }
 
+  @Patch(':id/read')
+  @ApiOperation({ summary: 'Marcar notificaÃ§Ã£o como lida' })
+  @ApiParam({ name: 'id', description: 'UUID da notificaÃ§Ã£o' })
+  @ApiResponse({ status: 200, description: 'NotificaÃ§Ã£o marcada como lida', type: NotificationSuccessResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, description: 'NotificaÃ§Ã£o nÃ£o encontrada', type: ApiErrorResponseDto })
+  async markAsRead(
+    @CurrentTenant() tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const data = await this.notificationService.markAsRead(tenantId, id);
+    return { success: true, data };
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Excluir notificação' })
-  @ApiParam({ name: 'id', description: 'UUID da notificação' })
-  @ApiResponse({ status: 200, description: 'Notificação excluída', type: ApiMessageResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 404, description: 'Notificação não encontrada', type: ApiErrorResponseDto })
+  @ApiOperation({ summary: 'Excluir notificaÃ§Ã£o' })
+  @ApiParam({ name: 'id', description: 'UUID da notificaÃ§Ã£o' })
+  @ApiResponse({ status: 200, description: 'NotificaÃ§Ã£o excluÃ­da', type: ApiMessageResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, description: 'NotificaÃ§Ã£o nÃ£o encontrada', type: ApiErrorResponseDto })
   async remove(
     @CurrentTenant() tenantId: string,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     await this.notificationService.remove(tenantId, id);
-    return { success: true, message: 'Notificação excluída com sucesso' };
+    return { success: true, message: 'NotificaÃ§Ã£o excluÃ­da com sucesso' };
   }
 
   @Delete()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Excluir todas as notificações' })
-  @ApiResponse({ status: 200, description: 'Todas excluídas', type: NotificationBulkDeleteResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiOperation({ summary: 'Excluir todas as notificaÃ§Ãµes' })
+  @ApiResponse({ status: 200, description: 'Todas excluÃ­das', type: NotificationBulkDeleteResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async removeAll(@CurrentTenant() tenantId: string) {
     const data = await this.notificationService.removeAll(tenantId);
     return { success: true, data };

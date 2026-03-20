@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Inject,
   Param,
+  ParseUUIDPipe,
   Post,
   Put,
   Req,
@@ -31,6 +32,7 @@ import { UpdateCompanyDto } from '../../../application/dto/update-company.dto.js
 import { ChangePasswordDto } from '../../../application/dto/change-password.dto.js';
 import { UpdateAppearanceDto } from '../../../application/dto/update-appearance.dto.js';
 import { UpdateNotificationPreferencesDto } from '../../../application/dto/update-notification-preferences.dto.js';
+import { DeleteAccountDto } from '../../../application/dto/delete-account.dto.js';
 import {
   PersonalSuccessResponseDto,
   CompanySuccessResponseDto,
@@ -38,6 +40,7 @@ import {
   NotificationPreferencesSuccessResponseDto,
   SessionListSuccessResponseDto,
 } from '../../../application/dto/settings-response-wrapper.dto.js';
+import { PrivacyExportSuccessResponseDto } from '../../../application/dto/privacy-export-response.dto.js';
 import { ApiErrorResponseDto, ApiMessageResponseDto } from '../../../../../common/swagger/api-responses.dto.js';
 import { CurrentUser } from '../../../../../common/decorators/current-user.decorator.js';
 import { CurrentTenant } from '../../../../../common/decorators/current-tenant.decorator.js';
@@ -54,12 +57,12 @@ export class SettingsController {
     private readonly uploadService: UploadUseCasePort,
   ) {}
 
-  // ── Personal ────────────────────────────────────────────
+  // â”€â”€ Personal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Get('personal')
-  @ApiOperation({ summary: 'Obter dados pessoais do usuário' })
+  @ApiOperation({ summary: 'Obter dados pessoais do usuÃ¡rio' })
   @ApiResponse({ status: 200, description: 'Dados pessoais retornados', type: PersonalSuccessResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async getPersonal(@CurrentUser('sub') userId: string) {
     const data = await this.settingsService.getPersonal(userId);
     return { success: true, data };
@@ -68,8 +71,8 @@ export class SettingsController {
   @Put('personal')
   @ApiOperation({ summary: 'Atualizar dados pessoais' })
   @ApiResponse({ status: 200, description: 'Dados pessoais atualizados', type: PersonalSuccessResponseDto })
-  @ApiResponse({ status: 400, description: 'Dados de entrada inválidos', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 400, description: 'Dados de entrada invÃ¡lidos', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async updatePersonal(
     @CurrentUser('sub') userId: string,
     @Body() dto: UpdatePersonalDto,
@@ -91,8 +94,8 @@ export class SettingsController {
     },
   })
   @ApiResponse({ status: 201, description: 'Foto atualizada com sucesso', type: PersonalSuccessResponseDto })
-  @ApiResponse({ status: 400, description: 'Arquivo inválido', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 400, description: 'Arquivo invÃ¡lido', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async uploadPhoto(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser('sub') userId: string,
@@ -107,12 +110,12 @@ export class SettingsController {
     return { success: true, data };
   }
 
-  // ── Company ─────────────────────────────────────────────
+  // â”€â”€ Company â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Get('company')
   @ApiOperation({ summary: 'Obter dados da empresa' })
   @ApiResponse({ status: 200, description: 'Dados da empresa retornados', type: CompanySuccessResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async getCompany(@CurrentTenant() tenantId: string) {
     const data = await this.settingsService.getCompany(tenantId);
     return { success: true, data };
@@ -121,8 +124,8 @@ export class SettingsController {
   @Put('company')
   @ApiOperation({ summary: 'Atualizar dados da empresa (admin only)' })
   @ApiResponse({ status: 200, description: 'Dados da empresa atualizados', type: CompanySuccessResponseDto })
-  @ApiResponse({ status: 400, description: 'Dados de entrada inválidos', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 400, description: 'Dados de entrada invÃ¡lidos', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   @ApiResponse({ status: 403, description: 'Apenas administradores podem alterar', type: ApiErrorResponseDto })
   async updateCompany(
     @CurrentTenant() tenantId: string,
@@ -137,22 +140,22 @@ export class SettingsController {
     return { success: true, data };
   }
 
-  // ── Appearance ──────────────────────────────────────────
+  // â”€â”€ Appearance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Get('appearance')
-  @ApiOperation({ summary: 'Obter configurações de aparência' })
-  @ApiResponse({ status: 200, description: 'Configurações de aparência retornadas', type: AppearanceSuccessResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiOperation({ summary: 'Obter configuraÃ§Ãµes de aparÃªncia' })
+  @ApiResponse({ status: 200, description: 'ConfiguraÃ§Ãµes de aparÃªncia retornadas', type: AppearanceSuccessResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async getAppearance(@CurrentUser('sub') userId: string) {
     const data = await this.settingsService.getAppearance(userId);
     return { success: true, data };
   }
 
   @Put('appearance')
-  @ApiOperation({ summary: 'Atualizar configurações de aparência' })
-  @ApiResponse({ status: 200, description: 'Configurações de aparência atualizadas', type: AppearanceSuccessResponseDto })
-  @ApiResponse({ status: 400, description: 'Dados de entrada inválidos', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiOperation({ summary: 'Atualizar configuraÃ§Ãµes de aparÃªncia' })
+  @ApiResponse({ status: 200, description: 'ConfiguraÃ§Ãµes de aparÃªncia atualizadas', type: AppearanceSuccessResponseDto })
+  @ApiResponse({ status: 400, description: 'Dados de entrada invÃ¡lidos', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async updateAppearance(
     @CurrentUser('sub') userId: string,
     @Body() dto: UpdateAppearanceDto,
@@ -161,22 +164,22 @@ export class SettingsController {
     return { success: true, data };
   }
 
-  // ── Notifications ───────────────────────────────────────
+  // â”€â”€ Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Get('notifications')
-  @ApiOperation({ summary: 'Obter preferências de notificação' })
-  @ApiResponse({ status: 200, description: 'Preferências de notificação retornadas', type: NotificationPreferencesSuccessResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiOperation({ summary: 'Obter preferÃªncias de notificaÃ§Ã£o' })
+  @ApiResponse({ status: 200, description: 'PreferÃªncias de notificaÃ§Ã£o retornadas', type: NotificationPreferencesSuccessResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async getNotificationPreferences(@CurrentUser('sub') userId: string) {
     const data = await this.settingsService.getNotificationPreferences(userId);
     return { success: true, data };
   }
 
   @Put('notifications')
-  @ApiOperation({ summary: 'Atualizar preferências de notificação' })
-  @ApiResponse({ status: 200, description: 'Preferências atualizadas', type: NotificationPreferencesSuccessResponseDto })
-  @ApiResponse({ status: 400, description: 'Dados de entrada inválidos', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiOperation({ summary: 'Atualizar preferÃªncias de notificaÃ§Ã£o' })
+  @ApiResponse({ status: 200, description: 'PreferÃªncias atualizadas', type: NotificationPreferencesSuccessResponseDto })
+  @ApiResponse({ status: 400, description: 'Dados de entrada invÃ¡lidos', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async updateNotificationPreferences(
     @CurrentUser('sub') userId: string,
     @Body() dto: UpdateNotificationPreferencesDto,
@@ -188,14 +191,14 @@ export class SettingsController {
     return { success: true, data };
   }
 
-  // ── Security ────────────────────────────────────────────
+  // â”€â”€ Security â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('security/change-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Alterar senha' })
   @ApiResponse({ status: 200, description: 'Senha alterada com sucesso', type: ApiMessageResponseDto })
-  @ApiResponse({ status: 400, description: 'Senhas não conferem ou senha atual incorreta', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 400, description: 'Senhas nÃ£o conferem ou senha atual incorreta', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async changePassword(
     @CurrentUser('sub') userId: string,
     @Body() dto: ChangePasswordDto,
@@ -210,9 +213,9 @@ export class SettingsController {
   }
 
   @Get('security/sessions')
-  @ApiOperation({ summary: 'Listar sessões ativas' })
-  @ApiResponse({ status: 200, description: 'Lista de sessões ativas', type: SessionListSuccessResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiOperation({ summary: 'Listar sessÃµes ativas' })
+  @ApiResponse({ status: 200, description: 'Lista de sessÃµes ativas', type: SessionListSuccessResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
   async listSessions(
     @CurrentUser('sub') userId: string,
     @Req() req: Request,
@@ -226,16 +229,51 @@ export class SettingsController {
   }
 
   @Delete('security/sessions/:id')
-  @ApiOperation({ summary: 'Revogar uma sessão' })
-  @ApiParam({ name: 'id', description: 'UUID da sessão' })
-  @ApiResponse({ status: 200, description: 'Sessão revogada', type: ApiMessageResponseDto })
-  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
-  @ApiResponse({ status: 404, description: 'Sessão não encontrada', type: ApiErrorResponseDto })
+  @ApiOperation({ summary: 'Revogar uma sessÃ£o' })
+  @ApiParam({ name: 'id', description: 'UUID da sessÃ£o' })
+  @ApiResponse({ status: 200, description: 'SessÃ£o revogada', type: ApiMessageResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 404, description: 'SessÃ£o nÃ£o encontrada', type: ApiErrorResponseDto })
   async revokeSession(
-    @Param('id') sessionId: string,
+    @Param('id', ParseUUIDPipe) sessionId: string,
     @CurrentUser('sub') userId: string,
   ) {
     await this.settingsService.revokeSession(sessionId, userId);
-    return { success: true, message: 'Sessão revogada com sucesso' };
+    return { success: true, message: 'SessÃ£o revogada com sucesso' };
+  }
+
+  // â”€â”€ Privacy (LGPD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  @Post('privacy/export')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Exportar todos os dados do usuÃ¡rio (LGPD)' })
+  @ApiResponse({ status: 200, description: 'Dados exportados em JSON', type: PrivacyExportSuccessResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
+  async exportData(
+    @CurrentUser('sub') userId: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    const data = await this.settingsService.exportUserData(userId, tenantId);
+    return { success: true, data };
+  }
+
+  @Delete('account')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Excluir conta do usuÃ¡rio (LGPD)' })
+  @ApiResponse({ status: 200, description: 'Conta excluÃ­da com sucesso', type: ApiMessageResponseDto })
+  @ApiResponse({ status: 400, description: 'Senha incorreta ou confirmaÃ§Ã£o invÃ¡lida', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'NÃ£o autenticado', type: ApiErrorResponseDto })
+  async deleteAccount(
+    @CurrentUser('sub') userId: string,
+    @CurrentTenant() tenantId: string,
+    @Body() dto: DeleteAccountDto,
+  ) {
+    await this.settingsService.deleteAccount(
+      userId,
+      tenantId,
+      dto.password,
+      dto.confirmation,
+    );
+    return { success: true, message: 'Conta excluÃ­da com sucesso. Seus dados foram removidos.' };
   }
 }

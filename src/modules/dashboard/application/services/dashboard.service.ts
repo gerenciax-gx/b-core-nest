@@ -6,6 +6,7 @@ import {
 import type { DashboardUseCasePort } from '../../domain/ports/input/dashboard.usecase.port.js';
 import type { UserRepositoryPort } from '../../../auth/domain/ports/output/user.repository.port.js';
 import type { TenantRepositoryPort } from '../../../tenant/domain/ports/output/tenant.repository.port.js';
+import type { DashboardRepositoryPort } from '../../domain/ports/output/dashboard.repository.port.js';
 import type { DashboardResponseDto } from '../dto/dashboard-response.dto.js';
 
 @Injectable()
@@ -16,15 +17,19 @@ export class DashboardService implements DashboardUseCasePort {
 
     @Inject('TenantRepositoryPort')
     private readonly tenantRepo: TenantRepositoryPort,
+
+    @Inject('DashboardRepositoryPort')
+    private readonly dashboardRepo: DashboardRepositoryPort,
   ) {}
 
   async getDashboard(
     userId: string,
     tenantId: string,
   ): Promise<DashboardResponseDto> {
-    const [user, tenant] = await Promise.all([
+    const [user, tenant, metrics] = await Promise.all([
       this.userRepo.findById(userId),
       this.tenantRepo.findById(tenantId),
+      this.dashboardRepo.getMetrics(tenantId),
     ]);
 
     if (!user) throw new NotFoundException('Usuário não encontrado');
@@ -44,10 +49,12 @@ export class DashboardService implements DashboardUseCasePort {
         status: tenant.status,
         logoUrl: tenant.logoUrl,
       },
-      // Placeholders — serão preenchidos nas fases seguintes
-      activeToolsCount: 0,
-      unreadNotifications: 0,
-      subscription: null,
+      activeToolsCount: metrics.activeToolsCount,
+      unreadNotifications: metrics.unreadNotifications,
+      activeCollaborators: metrics.activeCollaborators,
+      totalProducts: metrics.totalProducts,
+      totalServices: metrics.totalServices,
+      subscription: metrics.subscription,
     };
   }
 }

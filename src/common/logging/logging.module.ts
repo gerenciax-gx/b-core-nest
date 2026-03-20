@@ -16,7 +16,7 @@ import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
         autoLogging: {
           ignore: (req) =>
             (req as unknown as Record<string, unknown>)['url'] ===
-            '/api/v1/health',
+            '/health',
         },
         serializers: {
           req: (req: Record<string, unknown>) => ({

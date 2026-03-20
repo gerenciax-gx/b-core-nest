@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   HttpCode,
@@ -14,7 +15,13 @@ import type { AuthUseCasePort } from '../../../domain/ports/input/auth.usecase.p
 import { SignupDto } from '../../../application/dtos/signup.dto.js';
 import { LoginDto } from '../../../application/dtos/login.dto.js';
 import { ResetPasswordDto } from '../../../application/dtos/reset-password.dto.js';
+import {
+  ForgotPasswordDto,
+  VerifyResetTokenDto,
+  ConfirmPasswordResetDto,
+} from '../../../application/dtos/forgot-password.dto.js';
 import { AuthResponseDto, RefreshResponseDto } from '../../../application/dtos/auth-response.dto.js';
+import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../../../../common/decorators/public.decorator.js';
 import { CurrentUser } from '../../../../../common/decorators/current-user.decorator.js';
 import { ApiErrorResponseDto, ApiMessageResponseDto } from '../../../../../common/swagger/api-responses.dto.js';
@@ -30,6 +37,7 @@ export class AuthController {
   ) {}
 
   @Public()
+  @Throttle({ short: { limit: 3, ttl: 60000 }, medium: { limit: 3, ttl: 60000 } })
   @Post('signup')
   @ApiOperation({ summary: 'Cadastro de nova conta (cria tenant + admin user)' })
   @ApiResponse({ status: 201, description: 'Conta criada com sucesso', type: AuthResponseDto })
@@ -37,14 +45,19 @@ export class AuthController {
   @ApiResponse({ status: 409, description: 'Email já cadastrado', type: ApiErrorResponseDto })
   async signup(
     @Body() dto: SignupDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.authService.signup({
       name: dto.name,
       email: dto.email,
       password: dto.password,
+      passwordConfirm: dto.passwordConfirm,
       companyName: dto.companyName,
       companyType: dto.companyType,
+      device: req.headers['x-device-type'] as string | undefined,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
     });
 
     this.setRefreshTokenCookie(res, result.tokens.refreshToken);
@@ -60,6 +73,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ short: { limit: 5, ttl: 60000 }, medium: { limit: 10, ttl: 60000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login com email e senha' })
@@ -146,6 +160,10 @@ export class AuthController {
     @CurrentUser('sub') userId: string,
     @Body() dto: ResetPasswordDto,
   ) {
+    if (dto.newPassword !== dto.confirmPassword) {
+      throw new BadRequestException('As senhas não coincidem');
+    }
+
     await this.authService.resetPassword(
       userId,
       dto.currentPassword,
@@ -153,6 +171,45 @@ export class AuthController {
     );
 
     return { success: true, message: 'Senha alterada com sucesso' };
+  }
+
+  @Public()
+  @Throttle({ short: { limit: 3, ttl: 300000 }, medium: { limit: 3, ttl: 300000 } })
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Solicitar redefinição de senha via e-mail' })
+  @ApiResponse({ status: 200, description: 'E-mail enviado (se o e-mail existir)', type: ApiMessageResponseDto })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.forgotPassword(dto.email);
+    return {
+      success: true,
+      message: 'Se o e-mail estiver cadastrado, você receberá instruções para redefinir sua senha.',
+    };
+  }
+
+  @Public()
+  @Post('verify-reset-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verificar se o token de redefinição é válido' })
+  @ApiResponse({ status: 200, description: 'Resultado da verificação' })
+  async verifyResetToken(@Body() dto: VerifyResetTokenDto) {
+    const result = await this.authService.verifyResetToken(dto.token);
+    return { success: true, data: result };
+  }
+
+  @Public()
+  @Throttle({ short: { limit: 5, ttl: 60000 }, medium: { limit: 5, ttl: 60000 } })
+  @Post('confirm-password-reset')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirmar redefinição de senha com token' })
+  @ApiResponse({ status: 200, description: 'Senha redefinida com sucesso', type: ApiMessageResponseDto })
+  @ApiResponse({ status: 400, description: 'Token inválido, expirado ou senha fraca', type: ApiErrorResponseDto })
+  async confirmPasswordReset(@Body() dto: ConfirmPasswordResetDto) {
+    if (dto.newPassword !== dto.confirmPassword) {
+      throw new BadRequestException('As senhas não coincidem');
+    }
+    await this.authService.confirmPasswordReset(dto.token, dto.newPassword);
+    return { success: true, message: 'Senha redefinida com sucesso' };
   }
 
   // ── Private ───────────────────────────────────────────────

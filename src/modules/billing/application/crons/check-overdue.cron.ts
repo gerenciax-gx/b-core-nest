@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import type { EventBusPort } from '../../../../common/types/event-bus.port.js';
 import type { InvoiceRepositoryPort } from '../../domain/ports/output/invoice.repository.port.js';
 import type { SubscriptionRepositoryPort } from '../../domain/ports/output/subscription.repository.port.js';
 import { SAO_PAULO_TZ } from '../../../../common/helpers/business-day.helper.js';
@@ -19,7 +19,8 @@ export class CheckOverdueCron {
     @Inject('SubscriptionRepositoryPort')
     private readonly subscriptionRepo: SubscriptionRepositoryPort,
 
-    private readonly eventEmitter: EventEmitter2,
+    @Inject('EventBusPort')
+    private readonly eventBus: EventBusPort,
   ) {}
 
   /**
@@ -43,7 +44,7 @@ export class CheckOverdueCron {
         invoice.markAsOverdue();
         await this.invoiceRepo.update(invoice);
 
-        this.eventEmitter.emit('payment.overdue', {
+        this.eventBus.emit('payment.overdue', {
           invoiceId: invoice.id,
           tenantId: invoice.tenantId,
           daysOverdue: invoice.getDaysOverdue(),
@@ -76,7 +77,7 @@ export class CheckOverdueCron {
         await this.subscriptionRepo.update(sub);
       }
 
-      this.eventEmitter.emit('tenant.suspended', {
+      this.eventBus.emit('tenant.suspended', {
         tenantId: invoice.tenantId,
         invoiceId: invoice.id,
         daysOverdue: invoice.getDaysOverdue(),

@@ -41,6 +41,7 @@ export const subscriptions = pgTable(
     cardLast4: varchar('card_last4', { length: 4 }),
     cardBrand: varchar('card_brand', { length: 50 }),
     preferredPaymentMethod: paymentMethodEnum('preferred_payment_method'),
+    trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -76,6 +77,8 @@ export const invoices = pgTable(
     pixCopyPaste: text('pix_copy_paste'),
     boletoUrl: varchar('boleto_url', { length: 500 }),
     boletoBarcode: varchar('boleto_barcode', { length: 100 }),
+    retryCount: integer('retry_count').default(0).notNull(),
+    lastRetryAt: timestamp('last_retry_at', { withTimezone: true }),
     referenceMonth: varchar('reference_month', { length: 7 }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()

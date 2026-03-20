@@ -5,7 +5,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import type { EventBusPort } from '../../../../common/types/event-bus.port.js';
 import type {
   BillingUseCasePort,
   PayInvoiceResult,
@@ -27,9 +27,11 @@ import type {
 } from '../../domain/ports/output/payment-gateway.port.js';
 import type { BillingInfoRepositoryPort } from '../../domain/ports/output/billing-info.repository.port.js';
 import type { PaymentLogRepositoryPort } from '../../domain/ports/output/payment-log.repository.port.js';
+import type { PdfGeneratorPort } from '../../domain/ports/output/pdf-generator.port.js';
 import type { Invoice } from '../../domain/entities/invoice.entity.js';
 import { BillingInfo } from '../../domain/entities/billing-info.entity.js';
 import { randomUUID } from 'node:crypto';
+import { TransactionManager } from '../../../../common/database/transaction.helper.js';
 
 @Injectable()
 export class BillingService implements BillingUseCasePort {
@@ -51,7 +53,13 @@ export class BillingService implements BillingUseCasePort {
     @Inject('PaymentLogRepositoryPort')
     private readonly paymentLogRepo: PaymentLogRepositoryPort,
 
-    private readonly eventEmitter: EventEmitter2,
+    @Inject('PdfGeneratorPort')
+    private readonly pdfGenerator: PdfGeneratorPort,
+
+    @Inject('EventBusPort')
+    private readonly eventBus: EventBusPort,
+
+    private readonly transactionManager: TransactionManager,
   ) {}
 
   // ── Pay Invoice ────────────────────────────────────────────
@@ -100,19 +108,20 @@ export class BillingService implements BillingUseCasePort {
       }
     }
 
+    // Validate credit card data before sending to gateway
+    if (
+      chargeInput.billingType === 'CREDIT_CARD' &&
+      !chargeInput.creditCard &&
+      !chargeInput.creditCardToken
+    ) {
+      throw new BadRequestException(
+        'Dados do cartão de crédito são obrigatórios para pagamento com cartão',
+      );
+    }
+
     const result = await this.paymentGateway.createCharge(chargeInput);
 
-    // ── Registrar PaymentLog ──
-    await this.paymentLogRepo.save({
-      invoiceId: invoice.id,
-      gateway: 'asaas',
-      method: dto.paymentMethod as 'pix' | 'boleto' | 'credit_card' | 'debit_card',
-      externalId: result.id,
-      status: result.status,
-      amount: invoice.totalAmount.amount,
-      rawPayload: result,
-    });
-
+    // Preparar dados de pagamento externo
     invoice.setExternalPaymentData({
       externalId: result.id,
       externalUrl: result.invoiceUrl,
@@ -120,27 +129,44 @@ export class BillingService implements BillingUseCasePort {
       pixCopyPaste: result.pixCopyPaste,
       boletoUrl: result.bankSlipUrl,
     });
-    await this.invoiceRepo.update(invoice);
 
-    // Save card token if requested (BIL-008: only token, never full card)
-    if (
-      dto.paymentMethod === 'credit_card' &&
-      dto.saveCard &&
-      result.creditCardToken &&
-      invoice.subscriptionId
-    ) {
-      const subscription = await this.subscriptionRepo.findById(
-        invoice.subscriptionId,
+    // Persistir log + invoice + card token atomicamente
+    await this.transactionManager.run(async (tx) => {
+      await this.paymentLogRepo.save(
+        {
+          invoiceId: invoice.id,
+          gateway: 'asaas',
+          method: dto.paymentMethod as 'pix' | 'boleto' | 'credit_card' | 'debit_card',
+          externalId: result.id,
+          status: result.status,
+          amount: invoice.totalAmount.amount,
+          rawPayload: result,
+        },
+        tx,
       );
-      if (subscription) {
-        subscription.setCardToken(
-          result.creditCardToken,
-          dto.creditCard?.number?.slice(-4) ?? '****',
-          'visa',
+
+      await this.invoiceRepo.update(invoice, tx);
+
+      // Save card token if requested (BIL-008: only token, never full card)
+      if (
+        dto.paymentMethod === 'credit_card' &&
+        dto.saveCard &&
+        result.creditCardToken &&
+        invoice.subscriptionId
+      ) {
+        const subscription = await this.subscriptionRepo.findById(
+          invoice.subscriptionId,
         );
-        await this.subscriptionRepo.update(subscription);
+        if (subscription) {
+          subscription.setCardToken(
+            result.creditCardToken,
+            dto.creditCard?.number?.slice(-4) ?? '****',
+            result.creditCardBrand ?? 'unknown',
+          );
+          await this.subscriptionRepo.update(subscription, tx);
+        }
       }
-    }
+    });
 
     return {
       invoiceId: invoice.id,
@@ -160,56 +186,78 @@ export class BillingService implements BillingUseCasePort {
     );
     if (!invoice) return; // Ignore unknown payments
 
-    // ── Registrar PaymentLog para cada evento ──
-    await this.paymentLogRepo.save({
-      invoiceId: invoice.id,
-      gateway: 'asaas',
-      method: null,
-      externalId: payload.payment.id,
-      status: payload.payment.status,
-      amount: payload.payment.value,
-      rawPayload: payload,
-    });
+    // Persistir log + atualizações de invoice/subscription atomicamente
+    await this.transactionManager.run(async (tx) => {
+      // Dedup: skip if we already processed this webhook event
+      const existingLog = await this.paymentLogRepo.findByExternalId(
+        payload.payment.id,
+        tx,
+      );
+      if (existingLog) return;
 
-    switch (payload.event) {
-      case 'PAYMENT_CONFIRMED':
-      case 'PAYMENT_RECEIVED': {
-        invoice.confirmPayment(new Date(payload.payment.confirmedDate));
-        await this.invoiceRepo.update(invoice);
+      await this.paymentLogRepo.save(
+        {
+          invoiceId: invoice.id,
+          gateway: 'asaas',
+          method: null,
+          externalId: payload.payment.id,
+          status: payload.payment.status,
+          amount: payload.payment.value,
+          rawPayload: payload,
+        },
+        tx,
+      );
 
-        // Reactivar todas as subs do tenant se estavam past_due
-        const tenantSubs = await this.subscriptionRepo.findByTenantId(
-          invoice.tenantId,
-        );
-        for (const sub of tenantSubs) {
-          if (sub.status === 'past_due') {
-            sub.reactivate();
-            await this.subscriptionRepo.update(sub);
+      switch (payload.event) {
+        case 'PAYMENT_CONFIRMED':
+        case 'PAYMENT_RECEIVED': {
+          invoice.confirmPayment(
+            new Date(payload.payment.confirmedDate ?? new Date()),
+          );
+          await this.invoiceRepo.update(invoice, tx);
+
+          // Reativar apenas a subscription da invoice paga
+          if (invoice.subscriptionId) {
+            const sub = await this.subscriptionRepo.findById(invoice.subscriptionId);
+            if (sub && sub.status === 'past_due') {
+              sub.reactivate();
+              await this.subscriptionRepo.update(sub, tx);
+            }
           }
+          break;
         }
 
-        this.eventEmitter.emit('payment.confirmed', {
+        case 'PAYMENT_OVERDUE':
+          if (invoice.status === 'pending') {
+            invoice.markAsOverdue();
+            await this.invoiceRepo.update(invoice, tx);
+          }
+          break;
+
+        case 'PAYMENT_REFUNDED':
+          invoice.refund();
+          await this.invoiceRepo.update(invoice, tx);
+          break;
+      }
+    });
+
+    // Emitir eventos FORA da transação (side-effects)
+    switch (payload.event) {
+      case 'PAYMENT_CONFIRMED':
+      case 'PAYMENT_RECEIVED':
+        this.eventBus.emit('payment.confirmed', {
           invoiceId: invoice.id,
           tenantId: invoice.tenantId,
           amount: invoice.totalAmount.amount,
         });
         break;
-      }
-
       case 'PAYMENT_OVERDUE':
-        if (invoice.status === 'pending') {
-          invoice.markAsOverdue();
-          await this.invoiceRepo.update(invoice);
-          this.eventEmitter.emit('payment.overdue', {
+        if (invoice.status === 'overdue') {
+          this.eventBus.emit('payment.overdue', {
             invoiceId: invoice.id,
             tenantId: invoice.tenantId,
           });
         }
-        break;
-
-      case 'PAYMENT_REFUNDED':
-        invoice.refund();
-        await this.invoiceRepo.update(invoice);
         break;
     }
   }
@@ -236,6 +284,22 @@ export class BillingService implements BillingUseCasePort {
       throw new NotFoundException('Fatura não encontrada');
     }
     return this.toInvoiceDetail(invoice);
+  }
+
+  // ── Generate Invoice PDF ──────────────────────────────────
+  async generateInvoicePdf(
+    tenantId: string,
+    invoiceId: string,
+  ): Promise<Buffer> {
+    const invoice = await this.invoiceRepo.findById(invoiceId);
+    if (!invoice || invoice.tenantId !== tenantId) {
+      throw new NotFoundException('Fatura não encontrada');
+    }
+
+    const detail = this.toInvoiceDetail(invoice);
+    const billingInfo = await this.getBillingInfo(tenantId);
+
+    return this.pdfGenerator.generateInvoicePdf(detail, billingInfo);
   }
 
   // ── Get Subscriptions by Tenant ────────────────────────────
@@ -344,6 +408,27 @@ export class BillingService implements BillingUseCasePort {
     } else {
       info.update(data);
       await this.billingInfoRepo.update(info);
+
+      // Sync with Asaas
+      if (info.customerExternalId) {
+        await this.paymentGateway.updateCustomer(info.customerExternalId, {
+          name: data.name,
+          email: data.email,
+          cpfCnpj: data.document,
+          phone: data.phone,
+          address: data.addressStreet
+            ? {
+                street: data.addressStreet,
+                number: data.addressNumber ?? '',
+                complement: data.addressComplement,
+                neighborhood: data.addressNeighborhood ?? '',
+                city: data.addressCity ?? '',
+                state: data.addressState ?? '',
+                zipCode: data.addressZipCode ?? '',
+              }
+            : undefined,
+        });
+      }
     }
 
     return this.toBillingInfoSummary(info);

@@ -32,24 +32,9 @@ export class DrizzleNotificationPreferencesRepository
     userId: string,
     prefs: NotificationPreferences,
   ): Promise<NotificationPreferences> {
-    const existing = await this.findByUserId(userId);
-
-    if (existing) {
-      await this.db
-        .update(notificationPreferences)
-        .set({
-          emailNotifications: prefs.emailNotifications,
-          pushNotifications: prefs.pushNotifications,
-          smsNotifications: prefs.smsNotifications,
-          orderUpdates: prefs.orderUpdates,
-          promotions: prefs.promotions,
-          securityAlerts: prefs.securityAlerts,
-          systemUpdates: prefs.systemUpdates,
-          updatedAt: prefs.updatedAt,
-        })
-        .where(eq(notificationPreferences.userId, userId));
-    } else {
-      await this.db.insert(notificationPreferences).values({
+    await this.db
+      .insert(notificationPreferences)
+      .values({
         id: prefs.id,
         userId,
         emailNotifications: prefs.emailNotifications,
@@ -61,8 +46,20 @@ export class DrizzleNotificationPreferencesRepository
         systemUpdates: prefs.systemUpdates,
         createdAt: prefs.createdAt,
         updatedAt: prefs.updatedAt,
+      })
+      .onConflictDoUpdate({
+        target: notificationPreferences.userId,
+        set: {
+          emailNotifications: prefs.emailNotifications,
+          pushNotifications: prefs.pushNotifications,
+          smsNotifications: prefs.smsNotifications,
+          orderUpdates: prefs.orderUpdates,
+          promotions: prefs.promotions,
+          securityAlerts: prefs.securityAlerts,
+          systemUpdates: prefs.systemUpdates,
+          updatedAt: prefs.updatedAt,
+        },
       });
-    }
 
     return prefs;
   }

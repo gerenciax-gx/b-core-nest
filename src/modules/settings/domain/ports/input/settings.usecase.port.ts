@@ -7,6 +7,7 @@ import type { UpdatePersonalDto } from '../../../application/dto/update-personal
 import type { UpdateCompanyDto } from '../../../application/dto/update-company.dto.js';
 import type { UpdateAppearanceDto } from '../../../application/dto/update-appearance.dto.js';
 import type { UpdateNotificationPreferencesDto } from '../../../application/dto/update-notification-preferences.dto.js';
+import type { PrivacyExportResponseDto } from '../../../application/dto/privacy-export-response.dto.js';
 
 export interface SettingsUseCasePort {
   getPersonal(userId: string): Promise<PersonalResponseDto>;
@@ -21,4 +22,6 @@ export interface SettingsUseCasePort {
   changePassword(userId: string, currentPassword: string, newPassword: string, confirmPassword: string): Promise<void>;
   listSessions(userId: string, currentRefreshToken?: string): Promise<SessionResponseDto[]>;
   revokeSession(sessionId: string, userId: string): Promise<void>;
+  exportUserData(userId: string, tenantId: string): Promise<PrivacyExportResponseDto>;
+  deleteAccount(userId: string, tenantId: string, password: string, confirmation: string): Promise<void>;
 }

@@ -41,6 +41,8 @@ export class Invoice {
     private _pixCopyPaste: string | null,
     private _boletoUrl: string | null,
     private _boletoBarcode: string | null,
+    private _retryCount: number,
+    private _lastRetryAt: Date | null,
     public readonly referenceMonth: string,
     public readonly createdAt: Date,
     private _updatedAt: Date,
@@ -61,6 +63,8 @@ export class Invoice {
       null,
       null,
       null,
+      null,
+      0,
       null,
       props.referenceMonth,
       new Date(),
@@ -104,6 +108,12 @@ export class Invoice {
   }
   get boletoBarcode(): string | null {
     return this._boletoBarcode;
+  }
+  get retryCount(): number {
+    return this._retryCount;
+  }
+  get lastRetryAt(): Date | null {
+    return this._lastRetryAt;
   }
   get items(): InvoiceItem[] {
     return [...this._items];
@@ -183,6 +193,12 @@ export class Invoice {
     if (!this.isOverdue() && this._status !== 'overdue') return 0;
     const diffMs = Date.now() - this._dueDate.getTime();
     return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  }
+
+  incrementRetry(): void {
+    this._retryCount++;
+    this._lastRetryAt = new Date();
+    this._updatedAt = new Date();
   }
 
   addItem(props: InvoiceItemProps): void {

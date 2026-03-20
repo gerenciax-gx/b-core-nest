@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
 
 export class CancelSubscriptionDto {
   @ApiProperty({
@@ -8,5 +8,6 @@ export class CancelSubscriptionDto {
   })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(1000)
   reason!: string;
 }

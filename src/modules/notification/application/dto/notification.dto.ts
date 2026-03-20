@@ -4,6 +4,9 @@ export class NotificationResponseDto {
   @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
   id!: string;
 
+  @ApiProperty({ example: 'a1b2c3d4-0000-0000-0000-000000000000' })
+  tenantId!: string;
+
   @ApiProperty({ example: 'payment_confirmed' })
   type!: string;
 

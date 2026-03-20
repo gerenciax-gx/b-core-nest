@@ -12,6 +12,9 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
  */
 @Injectable()
 export class TenantGuard implements CanActivate {
+  private static readonly UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -27,7 +30,9 @@ export class TenantGuard implements CanActivate {
       .getRequest<Record<string, unknown>>();
     const user = request['user'] as Record<string, unknown> | undefined;
 
-    if (!user) return true; // JwtAuthGuard handles this
+    if (!user) {
+      throw new UnauthorizedException('Autenticação necessária');
+    }
 
     const userRole = user['role'] as string | undefined;
     const tenantId = user['tenantId'] as string | undefined;
@@ -38,11 +43,14 @@ export class TenantGuard implements CanActivate {
       const url = (req['url'] as string) ?? '';
       const urlParams = new URLSearchParams(url.split('?')[1] ?? '');
       const targetTenant = urlParams.get('targetTenantId');
+      if (targetTenant && !TenantGuard.UUID_RE.test(targetTenant)) {
+        throw new UnauthorizedException('targetTenantId inválido');
+      }
       request['tenantId'] = targetTenant ?? tenantId ?? '';
       return true;
     }
 
-    if (!tenantId) {
+    if (!tenantId || !TenantGuard.UUID_RE.test(tenantId)) {
       throw new UnauthorizedException('Token inválido: tenantId ausente');
     }
 

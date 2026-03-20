@@ -7,7 +7,9 @@ import {
   HttpStatus,
   Inject,
   Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
+import { timingSafeEqual } from 'node:crypto';
 import {
   ApiTags,
   ApiOperation,
@@ -19,6 +21,7 @@ import { Public } from '../../../../../common/decorators/public.decorator.js';
 import type { BillingUseCasePort } from '../../../domain/ports/input/billing.usecase.port.js';
 import { asaasConfig } from '../../../../../common/config/asaas.config.js';
 import { WebhookResponseDto } from '../../../application/dto/billing-response-wrapper.dto.js';
+import { AsaasWebhookPayloadDto } from '../../../application/dto/asaas-webhook.dto.js';
 
 @ApiTags('Billing – Webhooks')
 @Controller('billing/webhooks')
@@ -43,13 +46,20 @@ export class WebhookController {
   @ApiOperation({ summary: 'Webhook Asaas (público)' })
   @ApiResponse({ status: 200, description: 'Webhook processado', type: WebhookResponseDto })
   async handleAsaasWebhook(
-    @Body() payload: any,
+    @Body() payload: AsaasWebhookPayloadDto,
     @Headers('asaas-access-token') accessToken: string,
   ): Promise<{ received: boolean }> {
-    // Validate webhook token (BIL-013)
-    if (accessToken !== this.config.webhookToken) {
+    // Validate webhook token — timing-safe comparison (BIL-013)
+    if (!accessToken || !this.config.webhookToken) {
+      this.logger.warn('Webhook token ausente');
+      throw new UnauthorizedException();
+    }
+
+    const a = Buffer.from(accessToken, 'utf-8');
+    const b = Buffer.from(this.config.webhookToken, 'utf-8');
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
       this.logger.warn('Webhook token inválido');
-      return { received: false };
+      throw new UnauthorizedException();
     }
 
     this.logger.log(

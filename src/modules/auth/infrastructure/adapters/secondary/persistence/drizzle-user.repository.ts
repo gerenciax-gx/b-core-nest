@@ -2,10 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
+import type { DbClient } from '../../../../../../common/database/transaction.helper.js';
 import { UserRepositoryPort } from '../../../../domain/ports/output/user.repository.port.js';
 import {
   User,
   type UserRole,
+  VALID_USER_ROLES,
 } from '../../../../domain/entities/user.entity.js';
 import { users } from './user.schema.js';
 
@@ -16,8 +18,9 @@ export class DrizzleUserRepository implements UserRepositoryPort {
     private readonly db: NodePgDatabase,
   ) {}
 
-  async save(user: User): Promise<User> {
-    await this.db.insert(users).values({
+  async save(user: User, tx?: DbClient): Promise<User> {
+    const db = tx ?? this.db;
+    await db.insert(users).values({
       id: user.id,
       tenantId: user.tenantId,
       name: user.name,
@@ -110,18 +113,22 @@ export class DrizzleUserRepository implements UserRepositoryPort {
     return user;
   }
 
-  async delete(id: string): Promise<void> {
-    await this.db.delete(users).where(eq(users.id, id));
+  async delete(id: string, tx?: DbClient): Promise<void> {
+    const db = tx ?? this.db;
+    await db.delete(users).where(eq(users.id, id));
   }
 
   private toDomain(row: typeof users.$inferSelect): User {
+    const role = VALID_USER_ROLES.includes(row.role as UserRole)
+      ? (row.role as UserRole)
+      : 'user';
     return User.reconstitute({
       id: row.id,
       tenantId: row.tenantId,
       name: row.name,
       email: row.email,
       passwordHash: row.passwordHash,
-      role: row.role as UserRole,
+      role,
       isActive: row.isActive,
       collaboratorId: row.collaboratorId,
       mustResetPassword: row.mustResetPassword,

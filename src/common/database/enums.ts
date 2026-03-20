@@ -99,6 +99,7 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'payment_confirmed',
   'payment_overdue',
   'subscription_activated',
+  'trial_expired',
   'tool_new',
   'system_maintenance',
   'stock_alert',

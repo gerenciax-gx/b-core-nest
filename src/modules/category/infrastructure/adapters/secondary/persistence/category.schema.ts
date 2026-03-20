@@ -6,6 +6,7 @@ import {
   integer,
   timestamp,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { categoryTypeEnum } from '../../../../../../common/database/enums.js';
 import { tenants } from '../../../../../tenant/infrastructure/adapters/secondary/persistence/tenant.schema.js';
@@ -31,6 +32,7 @@ export const categories = pgTable(
   (table) => [
     index('idx_categories_tenant_id').on(table.tenantId),
     index('idx_categories_type').on(table.type),
+    uniqueIndex('uq_categories_tenant_type_name').on(table.tenantId, table.type, table.name),
   ],
 );
 

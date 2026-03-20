@@ -104,8 +104,11 @@ export class UploadController {
   @ApiResponse({ status: 200, description: 'Arquivo removido', type: ApiMessageResponseDto })
   @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
   @ApiResponse({ status: 404, description: 'Arquivo não encontrado', type: ApiErrorResponseDto })
-  async deleteFile(@Param('path') filePath: string) {
-    await this.uploadService.deleteFile(filePath);
+  async deleteFile(
+    @Param('path') filePath: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    await this.uploadService.deleteFile(filePath, tenantId);
 
     return {
       success: true,

@@ -9,7 +9,6 @@ import type { PaginatedResponse } from '../../../../../common/types/api-response
 export interface CollaboratorUseCasePort {
   create(
     tenantId: string,
-    callerRole: string,
     dto: CreateCollaboratorDto,
   ): Promise<{ collaborator: Record<string, unknown>; temporaryPassword: string }>;
   findAll(

@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from '../decorators/roles.decorator.js';
+import { ROLES_KEY, UserRole } from '../decorators/roles.decorator.js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 
 @Injectable()
@@ -20,7 +20,7 @@ export class RolesGuard implements CanActivate {
 
     if (isPublic) return true;
 
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
+    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
     );
@@ -34,7 +34,7 @@ export class RolesGuard implements CanActivate {
 
     if (!user) return false;
 
-    const userRole = user['role'] as string | undefined;
+    const userRole = user['role'] as UserRole | undefined;
     if (!userRole) {
       throw new ForbiddenException('Acesso negado: permissão insuficiente');
     }

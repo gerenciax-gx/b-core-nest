@@ -1,9 +1,14 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Inject,
   Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -17,6 +22,7 @@ import {
 import type { MarketplaceUseCasePort } from '../../../domain/ports/input/marketplace.usecase.port.js';
 import { ListToolsQueryDto } from '../../../application/dto/list-tools-query.dto.js';
 import { SubscribeDto } from '../../../application/dto/subscribe.dto.js';
+import { ChangePlanDto } from '../../../application/dto/change-plan.dto.js';
 import {
   ToolPaginatedResponseDto,
   ToolDetailSuccessResponseDto,
@@ -25,6 +31,7 @@ import {
 } from '../../../application/dto/marketplace-response-wrapper.dto.js';
 import {
   ApiErrorResponseDto,
+  ApiMessageResponseDto,
 } from '../../../../../common/swagger/api-responses.dto.js';
 import { CurrentTenant } from '../../../../../common/decorators/current-tenant.decorator.js';
 import { Roles } from '../../../../../common/decorators/roles.decorator.js';
@@ -39,7 +46,7 @@ export class MarketplaceController {
   ) {}
 
   @Get('tools')
-  @ApiOperation({ summary: 'Listar ferramentas disponíveis' })
+  @ApiOperation({ summary: 'Listar ferramentas disponÃ­veis' })
   @ApiResponse({
     status: 200,
     description: 'Lista paginada de ferramentas',
@@ -47,7 +54,7 @@ export class MarketplaceController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Não autenticado',
+    description: 'NÃ£o autenticado',
     type: ApiErrorResponseDto,
   })
   async listTools(@Query() query: ListToolsQueryDto) {
@@ -64,16 +71,16 @@ export class MarketplaceController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Não autenticado',
+    description: 'NÃ£o autenticado',
     type: ApiErrorResponseDto,
   })
   @ApiResponse({
     status: 404,
-    description: 'Ferramenta não encontrada',
+    description: 'Ferramenta nÃ£o encontrada',
     type: ApiErrorResponseDto,
   })
   async getToolDetail(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenant() tenantId: string,
   ) {
     const data = await this.marketplaceService.getToolDetail(id, tenantId);
@@ -95,7 +102,7 @@ export class MarketplaceController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Não autenticado',
+    description: 'NÃ£o autenticado',
     type: ApiErrorResponseDto,
   })
   @ApiResponse({
@@ -105,12 +112,12 @@ export class MarketplaceController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Plano não encontrado',
+    description: 'Plano nÃ£o encontrado',
     type: ApiErrorResponseDto,
   })
   @ApiResponse({
     status: 409,
-    description: 'Já existe assinatura ativa para esta ferramenta',
+    description: 'JÃ¡ existe assinatura ativa para esta ferramenta',
     type: ApiErrorResponseDto,
   })
   async subscribe(
@@ -130,11 +137,90 @@ export class MarketplaceController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Não autenticado',
+    description: 'NÃ£o autenticado',
     type: ApiErrorResponseDto,
   })
   async listSubscriptions(@CurrentTenant() tenantId: string) {
     const data = await this.marketplaceService.listSubscriptions(tenantId);
+    return { success: true, data };
+  }
+
+  @Get('expired-trials')
+  @ApiOperation({ summary: 'Trials recentemente expirados (para popup)' })
+  @ApiResponse({ status: 200, description: 'Lista de trials expirados nos Ãºltimos 7 dias' })
+  async getExpiredTrials(@CurrentTenant() tenantId: string) {
+    const data = await this.marketplaceService.getExpiredTrials(tenantId);
+    return { success: true, data };
+  }
+
+  @Delete('subscriptions/:subscriptionId')
+  @Roles('admin')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancelar assinatura de uma ferramenta' })
+  @ApiParam({ name: 'subscriptionId', description: 'UUID da assinatura' })
+  @ApiResponse({
+    status: 200,
+    description: 'Assinatura cancelada com sucesso',
+    type: ApiMessageResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Assinatura jÃ¡ cancelada',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acesso negado',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Assinatura nÃ£o encontrada',
+    type: ApiErrorResponseDto,
+  })
+  async unsubscribeTool(
+    @CurrentTenant() tenantId: string,
+    @Param('subscriptionId', ParseUUIDPipe) subscriptionId: string,
+  ) {
+    await this.marketplaceService.unsubscribeTool(tenantId, subscriptionId);
+    return { success: true, message: 'Assinatura cancelada com sucesso' };
+  }
+
+  @Patch('subscriptions/:subscriptionId/change-plan')
+  @Roles('admin')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Alterar plano de uma assinatura (upgrade/downgrade)' })
+  @ApiParam({ name: 'subscriptionId', description: 'UUID da assinatura' })
+  @ApiResponse({
+    status: 200,
+    description: 'Plano alterado com sucesso',
+    type: SubscriptionSuccessResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Plano invÃ¡lido, mesmo plano, ou assinatura nÃ£o ativa',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Acesso negado',
+    type: ApiErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Assinatura ou plano nÃ£o encontrado',
+    type: ApiErrorResponseDto,
+  })
+  async changePlan(
+    @CurrentTenant() tenantId: string,
+    @Param('subscriptionId', ParseUUIDPipe) subscriptionId: string,
+    @Body() dto: ChangePlanDto,
+  ) {
+    const data = await this.marketplaceService.changePlan(
+      tenantId,
+      subscriptionId,
+      dto,
+    );
     return { success: true, data };
   }
 }

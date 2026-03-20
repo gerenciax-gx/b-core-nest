@@ -1,8 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { eq, and, ilike, sql, asc, desc, inArray, type SQL } from 'drizzle-orm';
+import { escapeLikePattern } from '../../../../../../common/utils/sql.util.js';
 import { randomUUID } from 'node:crypto';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
+import type { DbClient } from '../../../../../../common/database/transaction.helper.js';
 import type { ServiceRepositoryPort } from '../../../../domain/ports/output/service.repository.port.js';
 import {
   Service,
@@ -26,8 +28,9 @@ export class DrizzleServiceRepository implements ServiceRepositoryPort {
     private readonly db: NodePgDatabase,
   ) {}
 
-  async save(service: Service): Promise<Service> {
-    await this.db.insert(services).values({
+  async save(service: Service, tx?: DbClient): Promise<Service> {
+    const db = tx ?? this.db;
+    await db.insert(services).values({
       id: service.id,
       tenantId: service.tenantId,
       categoryId: service.categoryId,
@@ -71,7 +74,7 @@ export class DrizzleServiceRepository implements ServiceRepositoryPort {
     if (filters?.status) conditions.push(eq(services.status, filters.status as 'active' | 'inactive' | 'paused'));
     if (filters?.categoryId) conditions.push(eq(services.categoryId, filters.categoryId));
     if (filters?.search) {
-      conditions.push(ilike(services.name, `%${filters.search}%`));
+      conditions.push(ilike(services.name, `%${escapeLikePattern(filters.search)}%`));
     }
 
     const whereClause = and(...conditions);
@@ -129,8 +132,9 @@ export class DrizzleServiceRepository implements ServiceRepositoryPort {
     return sortMap[sortBy ?? 'createdAt'] ?? services.createdAt;
   }
 
-  async update(service: Service): Promise<Service> {
-    await this.db
+  async update(service: Service, tx?: DbClient): Promise<Service> {
+    const db = tx ?? this.db;
+    await db
       .update(services)
       .set({
         categoryId: service.categoryId,
@@ -158,13 +162,14 @@ export class DrizzleServiceRepository implements ServiceRepositoryPort {
       .where(and(eq(services.id, id), eq(services.tenantId, tenantId)));
   }
 
-  async savePriceVariations(service: Service): Promise<void> {
-    await this.db
+  async savePriceVariations(service: Service, tx?: DbClient): Promise<void> {
+    const db = tx ?? this.db;
+    await db
       .delete(servicePriceVariations)
       .where(eq(servicePriceVariations.serviceId, service.id));
 
     if (service.priceVariations.length > 0) {
-      await this.db.insert(servicePriceVariations).values(
+      await db.insert(servicePriceVariations).values(
         service.priceVariations.map((v) => ({
           id: v.id || randomUUID(),
           serviceId: service.id,
@@ -179,13 +184,14 @@ export class DrizzleServiceRepository implements ServiceRepositoryPort {
     }
   }
 
-  async savePhotos(service: Service): Promise<void> {
-    await this.db
+  async savePhotos(service: Service, tx?: DbClient): Promise<void> {
+    const db = tx ?? this.db;
+    await db
       .delete(servicePhotos)
       .where(eq(servicePhotos.serviceId, service.id));
 
     if (service.photos.length > 0) {
-      await this.db.insert(servicePhotos).values(
+      await db.insert(servicePhotos).values(
         service.photos.map((p) => ({
           id: p.id || randomUUID(),
           serviceId: service.id,
@@ -198,13 +204,14 @@ export class DrizzleServiceRepository implements ServiceRepositoryPort {
     }
   }
 
-  async saveProfessionals(service: Service): Promise<void> {
-    await this.db
+  async saveProfessionals(service: Service, tx?: DbClient): Promise<void> {
+    const db = tx ?? this.db;
+    await db
       .delete(serviceProfessionals)
       .where(eq(serviceProfessionals.serviceId, service.id));
 
     if (service.professionals.length > 0) {
-      await this.db.insert(serviceProfessionals).values(
+      await db.insert(serviceProfessionals).values(
         service.professionals.map((p) => ({
           id: p.id || randomUUID(),
           serviceId: service.id,
@@ -277,5 +284,151 @@ export class DrizzleServiceRepository implements ServiceRepositoryPort {
       row.createdAt,
       row.updatedAt,
     );
+  }
+
+  // ── Price Variation sub-resource ────────────────────────
+
+  async findPriceVariationsByService(serviceId: string): Promise<PriceVariationData[]> {
+    const rows = await this.db
+      .select()
+      .from(servicePriceVariations)
+      .where(eq(servicePriceVariations.serviceId, serviceId))
+      .orderBy(servicePriceVariations.sortOrder);
+
+    return rows.map((v) => ({
+      id: v.id,
+      name: v.name,
+      price: Number(v.price),
+      durationMinutes: v.durationMinutes,
+      durationMinMinutes: v.durationMinMinutes,
+      durationMaxMinutes: v.durationMaxMinutes,
+      sortOrder: v.sortOrder,
+    }));
+  }
+
+  async findPriceVariationById(variationId: string, serviceId: string): Promise<PriceVariationData | null> {
+    const rows = await this.db
+      .select()
+      .from(servicePriceVariations)
+      .where(and(eq(servicePriceVariations.id, variationId), eq(servicePriceVariations.serviceId, serviceId)))
+      .limit(1);
+
+    const v = rows[0];
+    if (!v) return null;
+    return {
+      id: v.id,
+      name: v.name,
+      price: Number(v.price),
+      durationMinutes: v.durationMinutes,
+      durationMinMinutes: v.durationMinMinutes,
+      durationMaxMinutes: v.durationMaxMinutes,
+      sortOrder: v.sortOrder,
+    };
+  }
+
+  async addPriceVariation(serviceId: string, variation: PriceVariationData): Promise<PriceVariationData> {
+    await this.db.insert(servicePriceVariations).values({
+      id: variation.id,
+      serviceId,
+      name: variation.name,
+      price: String(variation.price),
+      durationMinutes: variation.durationMinutes,
+      durationMinMinutes: variation.durationMinMinutes,
+      durationMaxMinutes: variation.durationMaxMinutes,
+      sortOrder: variation.sortOrder,
+    });
+    return variation;
+  }
+
+  async updatePriceVariation(variationId: string, serviceId: string, data: Partial<PriceVariationData>): Promise<PriceVariationData | null> {
+    const set: Record<string, unknown> = {};
+    if (data.name !== undefined) set.name = data.name;
+    if (data.price !== undefined) set.price = String(data.price);
+    if (data.durationMinutes !== undefined) set.durationMinutes = data.durationMinutes;
+    if (data.durationMinMinutes !== undefined) set.durationMinMinutes = data.durationMinMinutes;
+    if (data.durationMaxMinutes !== undefined) set.durationMaxMinutes = data.durationMaxMinutes;
+    if (data.sortOrder !== undefined) set.sortOrder = data.sortOrder;
+    set.updatedAt = new Date();
+
+    await this.db
+      .update(servicePriceVariations)
+      .set(set)
+      .where(and(eq(servicePriceVariations.id, variationId), eq(servicePriceVariations.serviceId, serviceId)));
+
+    return this.findPriceVariationById(variationId, serviceId);
+  }
+
+  async deletePriceVariation(variationId: string, serviceId: string): Promise<boolean> {
+    const result = await this.db
+      .delete(servicePriceVariations)
+      .where(and(eq(servicePriceVariations.id, variationId), eq(servicePriceVariations.serviceId, serviceId)));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ── Photo sub-resource ──────────────────────────────────
+
+  async findPhotosByService(serviceId: string): Promise<ServicePhotoData[]> {
+    const rows = await this.db
+      .select()
+      .from(servicePhotos)
+      .where(eq(servicePhotos.serviceId, serviceId))
+      .orderBy(servicePhotos.sortOrder);
+
+    return rows.map((p) => ({
+      id: p.id,
+      url: p.url,
+      isMain: p.isMain,
+      sortOrder: p.sortOrder,
+      priceVariationId: p.priceVariationId,
+    }));
+  }
+
+  async addPhoto(serviceId: string, photo: ServicePhotoData): Promise<ServicePhotoData> {
+    await this.db.insert(servicePhotos).values({
+      id: photo.id,
+      serviceId,
+      priceVariationId: photo.priceVariationId,
+      url: photo.url,
+      isMain: photo.isMain,
+      sortOrder: photo.sortOrder,
+    });
+    return photo;
+  }
+
+  async deletePhoto(photoId: string, serviceId: string): Promise<boolean> {
+    const result = await this.db
+      .delete(servicePhotos)
+      .where(and(eq(servicePhotos.id, photoId), eq(servicePhotos.serviceId, serviceId)));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ── Professional sub-resource ───────────────────────────
+
+  async findProfessionalsByService(serviceId: string): Promise<ServiceProfessionalData[]> {
+    const rows = await this.db
+      .select()
+      .from(serviceProfessionals)
+      .where(eq(serviceProfessionals.serviceId, serviceId));
+
+    return rows.map((p) => ({
+      id: p.id,
+      collaboratorId: p.collaboratorId,
+    }));
+  }
+
+  async addProfessional(serviceId: string, professional: ServiceProfessionalData): Promise<ServiceProfessionalData> {
+    await this.db.insert(serviceProfessionals).values({
+      id: professional.id,
+      serviceId,
+      collaboratorId: professional.collaboratorId,
+    });
+    return professional;
+  }
+
+  async deleteProfessional(collaboratorId: string, serviceId: string): Promise<boolean> {
+    const result = await this.db
+      .delete(serviceProfessionals)
+      .where(and(eq(serviceProfessionals.collaboratorId, collaboratorId), eq(serviceProfessionals.serviceId, serviceId)));
+    return (result.rowCount ?? 0) > 0;
   }
 }

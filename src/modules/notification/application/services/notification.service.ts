@@ -1,6 +1,7 @@
 import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import type { NotificationUseCasePort, NotificationSummary } from '../../domain/ports/input/notification.usecase.port.js';
 import type { NotificationRepositoryPort } from '../../domain/ports/output/notification.repository.port.js';
+import type { NotificationPushPort } from '../../domain/ports/output/notification-push.port.js';
 import type { ListNotificationsQueryDto } from '../dto/list-notifications-query.dto.js';
 import type { PaginatedResponse } from '../../../../common/types/api-response.type.js';
 import { createPaginatedResponse } from '../../../../common/helpers/paginated-response.helper.js';
@@ -11,6 +12,9 @@ export class NotificationService implements NotificationUseCasePort {
   constructor(
     @Inject('NotificationRepositoryPort')
     private readonly notificationRepo: NotificationRepositoryPort,
+
+    @Inject('NotificationPushPort')
+    private readonly wsGateway: NotificationPushPort,
   ) {}
 
   async findAll(
@@ -51,11 +55,14 @@ export class NotificationService implements NotificationUseCasePort {
     if (!notification) {
       throw new NotFoundException('Notificação não encontrada');
     }
+    const count = await this.notificationRepo.countUnread(tenantId);
+    this.wsGateway.pushUnreadCount(tenantId, count);
     return this.toResponse(notification);
   }
 
   async markAllAsRead(tenantId: string): Promise<{ updated: number }> {
     const updated = await this.notificationRepo.markAllAsRead(tenantId);
+    this.wsGateway.pushUnreadCount(tenantId, 0);
     return { updated };
   }
 
@@ -65,10 +72,13 @@ export class NotificationService implements NotificationUseCasePort {
       throw new NotFoundException('Notificação não encontrada');
     }
     await this.notificationRepo.delete(id, tenantId);
+    const count = await this.notificationRepo.countUnread(tenantId);
+    this.wsGateway.pushUnreadCount(tenantId, count);
   }
 
   async removeAll(tenantId: string): Promise<{ deleted: number }> {
     const deleted = await this.notificationRepo.deleteAllByTenant(tenantId);
+    this.wsGateway.pushUnreadCount(tenantId, 0);
     return { deleted };
   }
 
@@ -96,6 +106,12 @@ export class NotificationService implements NotificationUseCasePort {
     );
 
     const sent = await this.notificationRepo.saveBatch(notificationsToSave);
+
+    // Push broadcast to all connected WS clients
+    for (const n of notificationsToSave) {
+      this.wsGateway.broadcastAll(this.toResponse(n));
+    }
+
     return { sent };
   }
 

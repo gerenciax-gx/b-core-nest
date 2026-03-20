@@ -1,3 +1,5 @@
+import type { DbClient } from '../../../../../common/database/transaction.helper.js';
+
 export interface PaymentLogEntry {
   invoiceId: string;
   gateway: string;
@@ -9,6 +11,7 @@ export interface PaymentLogEntry {
 }
 
 export interface PaymentLogRepositoryPort {
-  save(entry: PaymentLogEntry): Promise<void>;
+  save(entry: PaymentLogEntry, tx?: DbClient): Promise<void>;
   findByInvoiceId(invoiceId: string): Promise<PaymentLogEntry[]>;
+  findByExternalId(externalId: string, tx?: DbClient): Promise<PaymentLogEntry | null>;
 }

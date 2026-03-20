@@ -29,6 +29,7 @@ export const tools = pgTable(
     type: toolTypeEnum('type').default('addon').notNull(),
     iconUrl: varchar('icon_url', { length: 500 }),
     isActive: boolean('is_active').default(true).notNull(),
+    trialDays: integer('trial_days').default(0).notNull(),
     metadata: jsonb('metadata'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
@@ -54,7 +55,6 @@ export const toolPlans = pgTable(
     name: varchar('name', { length: 100 }).notNull(),
     price: numeric('price', { precision: 10, scale: 2 }).notNull(),
     interval: planIntervalEnum('interval').default('monthly').notNull(),
-    trialDays: integer('trial_days').default(0).notNull(),
     isPopular: boolean('is_popular').default(false).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     maxUsers: integer('max_users'),
@@ -97,6 +97,7 @@ export const tenantToolSubscriptions = pgTable(
       .references(() => toolPlans.id)
       .notNull(),
     status: subscriptionStatusEnum('status').default('active').notNull(),
+    trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
     startDate: timestamp('start_date', { withTimezone: true })
       .defaultNow()
       .notNull(),

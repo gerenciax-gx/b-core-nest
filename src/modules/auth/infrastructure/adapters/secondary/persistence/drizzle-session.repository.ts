@@ -2,9 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq, lt } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
+import type { DbClient } from '../../../../../../common/database/transaction.helper.js';
 import { SessionRepositoryPort } from '../../../../domain/ports/output/session.repository.port.js';
 import { UserSession } from '../../../../domain/entities/user-session.entity.js';
 import { userSessions } from './user.schema.js';
+import { hashToken } from '../../../../../../common/utils/crypto.util.js';
 
 @Injectable()
 export class DrizzleSessionRepository implements SessionRepositoryPort {
@@ -17,10 +19,11 @@ export class DrizzleSessionRepository implements SessionRepositoryPort {
     await this.db.insert(userSessions).values({
       id: session.id,
       userId: session.userId,
-      refreshToken: session.refreshToken,
+      refreshToken: hashToken(session.refreshToken),
       device: session.device,
       ip: session.ip,
       userAgent: session.userAgent,
+      isRevoked: session.isRevoked,
       expiresAt: session.expiresAt,
       createdAt: session.createdAt,
     });
@@ -29,10 +32,11 @@ export class DrizzleSessionRepository implements SessionRepositoryPort {
   }
 
   async findByRefreshToken(token: string): Promise<UserSession | null> {
+    const tokenHash = hashToken(token);
     const rows = await this.db
       .select()
       .from(userSessions)
-      .where(eq(userSessions.refreshToken, token))
+      .where(eq(userSessions.refreshToken, tokenHash))
       .limit(1);
 
     const row = rows[0];
@@ -51,13 +55,23 @@ export class DrizzleSessionRepository implements SessionRepositoryPort {
   }
 
   async deleteByRefreshToken(token: string): Promise<void> {
+    const tokenHash = hashToken(token);
     await this.db
       .delete(userSessions)
-      .where(eq(userSessions.refreshToken, token));
+      .where(eq(userSessions.refreshToken, tokenHash));
   }
 
-  async deleteAllByUserId(userId: string): Promise<void> {
-    await this.db.delete(userSessions).where(eq(userSessions.userId, userId));
+  async revokeByRefreshToken(token: string): Promise<void> {
+    const tokenHash = hashToken(token);
+    await this.db
+      .update(userSessions)
+      .set({ isRevoked: true })
+      .where(eq(userSessions.refreshToken, tokenHash));
+  }
+
+  async deleteAllByUserId(userId: string, tx?: DbClient): Promise<void> {
+    const db = tx ?? this.db;
+    await db.delete(userSessions).where(eq(userSessions.userId, userId));
   }
 
   async deleteExpired(): Promise<number> {
@@ -76,6 +90,7 @@ export class DrizzleSessionRepository implements SessionRepositoryPort {
       row.device,
       row.ip,
       row.userAgent,
+      row.isRevoked,
       row.expiresAt,
       row.createdAt,
     );

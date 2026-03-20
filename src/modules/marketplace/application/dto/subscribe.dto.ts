@@ -1,4 +1,4 @@
-import { IsUUID } from 'class-validator';
+import { IsUUID, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SubscribeDto {
@@ -7,5 +7,6 @@ export class SubscribeDto {
     example: 'uuid-plan-1',
   })
   @IsUUID()
+  @IsNotEmpty()
   planId!: string;
 }

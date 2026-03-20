@@ -1,5 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { eq, and, ilike, sql, asc, desc, type SQL } from 'drizzle-orm';
+import { escapeLikePattern } from '../../../../../../common/utils/sql.util.js';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
 import type {
@@ -44,10 +45,10 @@ export class DrizzleMarketplaceRepository implements MarketplaceRepositoryPort {
       conditions.push(eq(tools.type, filters.type));
     }
     if (filters?.search) {
-      conditions.push(ilike(tools.name, `%${filters.search}%`));
+      conditions.push(ilike(tools.name, `%${escapeLikePattern(filters.search)}%`));
     }
     if (filters?.category) {
-      conditions.push(ilike(tools.category, `%${filters.category}%`));
+      conditions.push(ilike(tools.category, `%${escapeLikePattern(filters.category)}%`));
     }
 
     const whereClause = and(...conditions);
@@ -128,7 +129,6 @@ export class DrizzleMarketplaceRepository implements MarketplaceRepositoryPort {
           p.name,
           Number(p.price),
           p.interval as PlanInterval,
-          p.trialDays,
           p.isPopular,
           p.isActive,
           p.maxUsers,
@@ -148,6 +148,7 @@ export class DrizzleMarketplaceRepository implements MarketplaceRepositoryPort {
       toolRow.type as ToolType,
       toolRow.iconUrl,
       toolRow.isActive,
+      toolRow.trialDays,
       toolRow.metadata as Record<string, unknown> | null,
       toolRow.createdAt,
       toolRow.updatedAt,
@@ -178,7 +179,6 @@ export class DrizzleMarketplaceRepository implements MarketplaceRepositoryPort {
       row.name,
       Number(row.price),
       row.interval as PlanInterval,
-      row.trialDays,
       row.isPopular,
       row.isActive,
       row.maxUsers,
@@ -226,7 +226,7 @@ export class DrizzleMarketplaceRepository implements MarketplaceRepositoryPort {
         and(
           eq(tenantToolSubscriptions.tenantId, tenantId),
           eq(toolPlans.toolId, toolId),
-          eq(tenantToolSubscriptions.status, 'active'),
+          sql`${tenantToolSubscriptions.status} IN ('active', 'trialing')`,
         ),
       )
       .limit(1);
@@ -252,7 +252,7 @@ export class DrizzleMarketplaceRepository implements MarketplaceRepositoryPort {
       .where(
         and(
           eq(tenantToolSubscriptions.tenantId, tenantId),
-          eq(tenantToolSubscriptions.status, 'active'),
+          sql`${tenantToolSubscriptions.status} IN ('active', 'trialing')`,
         ),
       )
       .orderBy(desc(tenantToolSubscriptions.createdAt));
@@ -266,7 +266,6 @@ export class DrizzleMarketplaceRepository implements MarketplaceRepositoryPort {
         row.plan.name,
         Number(row.plan.price),
         row.plan.interval as PlanInterval,
-        row.plan.trialDays,
         row.plan.isPopular,
         row.plan.isActive,
         row.plan.maxUsers,
@@ -282,17 +281,72 @@ export class DrizzleMarketplaceRepository implements MarketplaceRepositoryPort {
   async createSubscription(
     tenantId: string,
     planId: string,
+    trialDays?: number,
   ): Promise<TenantSubscription> {
+    const isTrial = trialDays !== undefined && trialDays > 0;
+    const trialEndsAt = isTrial
+      ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000)
+      : null;
+
     const [row] = await this.db
       .insert(tenantToolSubscriptions)
       .values({
         tenantId,
         planId,
-        status: 'active',
+        status: isTrial ? 'trialing' : 'active',
+        trialEndsAt,
       })
       .returning();
 
-    return this.toSubscriptionDomain(row!);
+    if (!row) throw new InternalServerErrorException('Failed to create subscription');
+    return this.toSubscriptionDomain(row);
+  }
+
+  // ── Find subscription by ID ──────────────────────────────
+  async findSubscriptionById(
+    subscriptionId: string,
+  ): Promise<TenantSubscription | null> {
+    const [row] = await this.db
+      .select()
+      .from(tenantToolSubscriptions)
+      .where(eq(tenantToolSubscriptions.id, subscriptionId))
+      .limit(1);
+    return row ? this.toSubscriptionDomain(row) : null;
+  }
+
+  // ── Cancel subscription ──────────────────────────────────
+  async cancelSubscription(subscriptionId: string): Promise<void> {
+    await this.db
+      .update(tenantToolSubscriptions)
+      .set({
+        status: 'cancelled',
+        endDate: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(tenantToolSubscriptions.id, subscriptionId));
+  }
+
+  // ── Update subscription plan ─────────────────────────────
+  async updateSubscriptionPlan(
+    subscriptionId: string,
+    newPlanId: string,
+    activateFromTrial?: boolean,
+  ): Promise<TenantSubscription> {
+    const setValues: Record<string, unknown> = {
+      planId: newPlanId,
+      updatedAt: new Date(),
+    };
+    if (activateFromTrial) {
+      setValues['status'] = 'active';
+      setValues['trialEndsAt'] = null;
+    }
+    const [row] = await this.db
+      .update(tenantToolSubscriptions)
+      .set(setValues)
+      .where(eq(tenantToolSubscriptions.id, subscriptionId))
+      .returning();
+    if (!row) throw new InternalServerErrorException('Failed to update subscription plan');
+    return this.toSubscriptionDomain(row);
   }
 
   // ── Private helpers ──────────────────────────────────────
@@ -316,6 +370,7 @@ export class DrizzleMarketplaceRepository implements MarketplaceRepositoryPort {
       row.type as ToolType,
       row.iconUrl,
       row.isActive,
+      row.trialDays,
       row.metadata as Record<string, unknown> | null,
       row.createdAt,
       row.updatedAt,
@@ -330,10 +385,77 @@ export class DrizzleMarketplaceRepository implements MarketplaceRepositoryPort {
       row.tenantId,
       row.planId,
       row.status as SubscriptionStatus,
+      row.trialEndsAt,
       row.startDate,
       row.endDate,
       row.createdAt,
       row.updatedAt,
     );
+  }
+
+  // ── Trial helpers ────────────────────────────────────────
+
+  async findExpiredTrialSubscriptions(): Promise<TenantSubscription[]> {
+    const rows = await this.db
+      .select()
+      .from(tenantToolSubscriptions)
+      .where(
+        and(
+          eq(tenantToolSubscriptions.status, 'trialing'),
+          sql`${tenantToolSubscriptions.trialEndsAt} <= NOW()`,
+        ),
+      );
+
+    return rows.map((row) => this.toSubscriptionDomain(row));
+  }
+
+  async hasHadTrialForTool(tenantId: string, toolId: string): Promise<boolean> {
+    const rows = await this.db
+      .select({ id: tenantToolSubscriptions.id })
+      .from(tenantToolSubscriptions)
+      .innerJoin(toolPlans, eq(toolPlans.id, tenantToolSubscriptions.planId))
+      .where(
+        and(
+          eq(tenantToolSubscriptions.tenantId, tenantId),
+          eq(toolPlans.toolId, toolId),
+          sql`${tenantToolSubscriptions.trialEndsAt} IS NOT NULL`,
+        ),
+      )
+      .limit(1);
+
+    return rows.length > 0;
+  }
+
+  async findRecentlyExpiredTrials(
+    tenantId: string,
+    withinDays: number,
+  ): Promise<{ subscriptionId: string; toolId: string; toolName: string; toolSlug: string; expiredAt: Date }[]> {
+    const rows = await this.db
+      .select({
+        subscriptionId: tenantToolSubscriptions.id,
+        toolId: tools.id,
+        toolName: tools.name,
+        toolSlug: tools.slug,
+        expiredAt: tenantToolSubscriptions.trialEndsAt,
+      })
+      .from(tenantToolSubscriptions)
+      .innerJoin(toolPlans, eq(toolPlans.id, tenantToolSubscriptions.planId))
+      .innerJoin(tools, eq(tools.id, toolPlans.toolId))
+      .where(
+        and(
+          eq(tenantToolSubscriptions.tenantId, tenantId),
+          eq(tenantToolSubscriptions.status, 'cancelled'),
+          sql`${tenantToolSubscriptions.trialEndsAt} IS NOT NULL`,
+          sql`${tenantToolSubscriptions.trialEndsAt} >= (NOW() - make_interval(days => ${withinDays}))`,
+        ),
+      );
+
+    return rows.map((r) => ({
+      subscriptionId: r.subscriptionId,
+      toolId: r.toolId,
+      toolName: r.toolName,
+      toolSlug: r.toolSlug,
+      expiredAt: r.expiredAt!,
+    }));
   }
 }

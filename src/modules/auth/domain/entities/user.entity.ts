@@ -3,6 +3,7 @@ import { DomainException } from '../../../../common/exceptions/domain.exception.
 import { Email } from '../value-objects/email.vo.js';
 
 export type UserRole = 'master' | 'admin' | 'user';
+export const VALID_USER_ROLES: readonly UserRole[] = ['master', 'admin', 'user'];
 
 export interface CreateUserProps {
   tenantId: string;

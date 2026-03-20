@@ -1,4 +1,4 @@
-import { IsOptional, IsNumber, Min, Max, IsString, IsIn } from 'class-validator';
+import { IsOptional, IsNumber, Min, Max, IsString, IsIn, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -31,6 +31,7 @@ export class PaginationQueryDto {
   @ApiPropertyOptional({ description: 'Campo para ordenação' })
   @IsOptional()
   @IsString()
+  @Matches(/^[a-zA-Z_][a-zA-Z0-9_]*$/, { message: 'sortBy deve ser um nome de coluna válido' })
   sortBy?: string;
 
   @ApiPropertyOptional({

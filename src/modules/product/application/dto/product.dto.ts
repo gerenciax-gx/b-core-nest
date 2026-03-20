@@ -7,7 +7,10 @@ import {
   IsArray,
   IsInt,
   IsIn,
+  IsUUID,
+  IsUrl,
   MinLength,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -16,14 +19,13 @@ import { Type } from 'class-transformer';
 // ── Nested DTOs ─────────────────────────────────────────────
 
 export class VariationAttributeDto {
-  @ApiProperty({ example: 'size' }) @IsString() type!: string;
-  @ApiProperty({ example: '250ml' }) @IsString() value!: string;
+  @ApiProperty({ example: 'size' }) @IsString() @MaxLength(50) type!: string;
+  @ApiProperty({ example: '250ml' }) @IsString() @MaxLength(100) value!: string;
 }
 
 export class ProductVariationDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
-  @ApiProperty({ example: '250ml' }) @IsString() name!: string;
-  @ApiPropertyOptional({ example: 'SHA-250' }) @IsOptional() @IsString() sku?: string;
+  @ApiProperty({ example: '250ml' }) @IsString() @MaxLength(255) name!: string;
+  @ApiPropertyOptional({ example: 'SHA-250' }) @IsOptional() @IsString() @MaxLength(50) sku?: string;
   @ApiProperty({ type: [VariationAttributeDto] })
   @IsArray()
   @ValidateNested({ each: true })
@@ -31,8 +33,8 @@ export class ProductVariationDto {
   attributes!: VariationAttributeDto[];
   @ApiProperty({ example: 49.9 }) @IsNumber() price!: number;
   @ApiProperty({ example: 50 }) @IsInt() stock!: number;
-  @ApiPropertyOptional() @IsOptional() @IsString() imageUrl?: string;
-  @ApiPropertyOptional() @IsOptional() @IsArray() @IsString({ each: true }) photos?: string[];
+  @ApiPropertyOptional() @IsOptional() @IsUrl({}, { message: 'imageUrl deve ser uma URL válida' }) imageUrl?: string;
+  @ApiPropertyOptional() @IsOptional() @IsArray() @IsString({ each: true }) @MaxLength(500, { each: true }) photos?: string[];
   @ApiPropertyOptional({ type: [Object] }) @IsOptional() @IsArray() customFields?: CustomFieldDto[];
 }
 
@@ -43,9 +45,8 @@ export class ProductDimensionsDto {
 }
 
 export class CustomFieldDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
-  @ApiProperty({ example: 'Origem' }) @IsString() key!: string;
-  @ApiProperty({ example: 'Brasil' }) @IsString() value!: string;
+  @ApiProperty({ example: 'Origem' }) @IsString() @MaxLength(100) key!: string;
+  @ApiProperty({ example: 'Brasil' }) @IsString() @MaxLength(500) value!: string;
   @ApiPropertyOptional({ enum: ['text', 'number', 'date', 'boolean'] })
   @IsOptional()
   @IsString()
@@ -59,21 +60,24 @@ export class CreateProductDto {
   @ApiProperty({ example: 'Shampoo Reparador' })
   @IsString()
   @MinLength(2)
+  @MaxLength(255)
   name!: string;
 
   @ApiProperty({ example: 'SHA-500-REP' })
   @IsString()
   @MinLength(1)
+  @MaxLength(50)
   sku!: string;
 
   @ApiPropertyOptional({ example: 'Shampoo profissional' })
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   description?: string;
 
   @ApiPropertyOptional({ example: 'uuid-category' })
   @IsOptional()
-  @IsString()
+  @IsUUID()
   category?: string; // categoryId — frontend sends 'category'
 
   @ApiProperty({ example: 89.9 })
@@ -118,6 +122,7 @@ export class CreateProductDto {
   @ApiPropertyOptional({ example: '7891234567890' })
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   barcode?: string;
 
   @ApiPropertyOptional({ example: 0.5 })
@@ -141,6 +146,7 @@ export class CreateProductDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(100, { each: true })
   tags?: string[];
 
   @ApiPropertyOptional({ type: [ProductVariationDto] })
@@ -154,6 +160,7 @@ export class CreateProductDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(500, { each: true })
   photos?: string[];
 
   @ApiPropertyOptional({ type: [CustomFieldDto] })
@@ -192,12 +199,8 @@ export class ProductPhotoResponseDto {
   @ApiProperty() sortOrder!: number;
 }
 
-export class CustomFieldResponseDto {
-  @ApiProperty() id!: string;
-  @ApiProperty() key!: string;
-  @ApiProperty() value!: string;
-  @ApiPropertyOptional() type!: string;
-}
+import { CustomFieldResponseDto } from './product-custom-field.dto.js';
+export { CustomFieldResponseDto };
 
 export class ProductResponseDto {
   @ApiProperty() id!: string;

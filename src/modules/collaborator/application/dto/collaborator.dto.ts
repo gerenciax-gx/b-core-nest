@@ -7,6 +7,7 @@ import {
   IsIn,
   IsEmail,
   MinLength,
+  MaxLength,
   ValidateNested,
   Matches,
 } from 'class-validator';
@@ -17,34 +18,41 @@ import { Type } from 'class-transformer';
 export class AddressDto {
   @ApiProperty({ example: '12345-678' })
   @IsString()
+  @MaxLength(10)
   cep!: string;
 
   @ApiProperty({ example: 'Rua das Flores' })
   @IsString()
+  @MaxLength(255)
   street!: string;
 
   @ApiProperty({ example: '123' })
   @IsString()
+  @MaxLength(20)
   number!: string;
 
   @ApiPropertyOptional({ example: 'Apto 4' })
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   complement?: string;
 
   @ApiPropertyOptional({ example: 'Centro' })
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   neighborhood?: string;
 
   @ApiPropertyOptional({ example: 'São Paulo' })
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   city?: string;
 
   @ApiPropertyOptional({ example: 'SP' })
   @IsOptional()
   @IsString()
+  @MaxLength(2)
   state?: string;
 }
 
@@ -72,12 +80,14 @@ export class WorkScheduleDto {
   @ApiProperty({ example: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'] })
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(10, { each: true })
   workDays!: string[];
 }
 
 export class ToolPermissionDto {
   @ApiProperty({ example: 'agendamento' })
   @IsString()
+  @MaxLength(100)
   toolId!: string;
 
   @ApiProperty({ example: true })
@@ -91,11 +101,13 @@ export class CreateCollaboratorDto {
   @ApiProperty({ example: 'João' })
   @IsString()
   @MinLength(2)
+  @MaxLength(100)
   firstName!: string;
 
   @ApiProperty({ example: 'Silva' })
   @IsString()
   @MinLength(2)
+  @MaxLength(100)
   lastName!: string;
 
   @ApiProperty({ example: 'joao@empresa.com' })
@@ -104,10 +116,12 @@ export class CreateCollaboratorDto {
 
   @ApiProperty({ example: '12345678901', description: '11 dígitos' })
   @IsString()
+  @Matches(/^\d{11}$/, { message: 'CPF deve conter exatamente 11 dígitos numéricos' })
   cpf!: string;
 
   @ApiProperty({ example: '11999998888' })
   @IsString()
+  @MaxLength(20)
   phone!: string;
 
   @ApiProperty({ enum: ['male', 'female', 'other', 'prefer_not_to_say'] })
@@ -117,11 +131,13 @@ export class CreateCollaboratorDto {
   @ApiPropertyOptional({ example: '1990-05-15' })
   @IsOptional()
   @IsString()
+  @MaxLength(10)
   birthDate?: string;
 
   @ApiPropertyOptional({ example: 'America/Sao_Paulo' })
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   timezone?: string;
 
   @ApiPropertyOptional({ enum: ['admin', 'user'], default: 'user' })
@@ -156,6 +172,7 @@ export class CreateCollaboratorDto {
   @ApiPropertyOptional({ example: 'Observações sobre o colaborador' })
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   notes?: string;
 }
 
@@ -166,12 +183,14 @@ export class UpdateCollaboratorDto {
   @IsOptional()
   @IsString()
   @MinLength(2)
+  @MaxLength(100)
   firstName?: string;
 
   @ApiPropertyOptional({ example: 'Silva' })
   @IsOptional()
   @IsString()
   @MinLength(2)
+  @MaxLength(100)
   lastName?: string;
 
   @ApiPropertyOptional({ example: 'joao@empresa.com' })
@@ -182,11 +201,13 @@ export class UpdateCollaboratorDto {
   @ApiPropertyOptional({ example: '12345678901' })
   @IsOptional()
   @IsString()
+  @Matches(/^\d{11}$/, { message: 'CPF deve conter exatamente 11 dígitos numéricos' })
   cpf?: string;
 
   @ApiPropertyOptional({ example: '11999998888' })
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   phone?: string;
 
   @ApiPropertyOptional({ enum: ['male', 'female', 'other', 'prefer_not_to_say'] })
@@ -197,11 +218,13 @@ export class UpdateCollaboratorDto {
   @ApiPropertyOptional({ example: '1990-05-15' })
   @IsOptional()
   @IsString()
+  @MaxLength(10)
   birthDate?: string;
 
   @ApiPropertyOptional({ example: 'America/Sao_Paulo' })
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   timezone?: string;
 
   @ApiPropertyOptional({ enum: ['admin', 'user'] })
@@ -236,6 +259,7 @@ export class UpdateCollaboratorDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   notes?: string;
 }
 

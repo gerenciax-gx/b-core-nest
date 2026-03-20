@@ -12,12 +12,16 @@ import type {
 import type { ListProductsQueryDto } from '../dto/list-products-query.dto.js';
 import type { PaginatedResponse } from '../../../../common/types/api-response.type.js';
 import { createPaginatedResponse } from '../../../../common/helpers/paginated-response.helper.js';
+import type { CreateVariationDto, UpdateVariationDto, VariationResponseDto } from '../dto/product-variation.dto.js';
+import type { CreateCustomFieldDto, UpdateCustomFieldDto, CustomFieldResponseDto } from '../dto/product-custom-field.dto.js';
+import { TransactionManager } from '../../../../common/database/transaction.helper.js';
 
 @Injectable()
 export class ProductService implements ProductUseCasePort {
   constructor(
     @Inject('ProductRepositoryPort')
     private readonly productRepo: ProductRepositoryPort,
+    private readonly transactionManager: TransactionManager,
   ) {}
 
   async create(
@@ -44,53 +48,55 @@ export class ProductService implements ProductUseCasePort {
       status: dto.status,
     });
 
-    await this.productRepo.save(product);
+    await this.transactionManager.run(async (tx) => {
+      await this.productRepo.save(product, tx);
 
-    // Save variations
-    if (dto.variations && dto.variations.length > 0) {
-      product.setVariations(
-        dto.variations.map((v, i) => ({
-          id: v.id || randomUUID(),
-          name: v.name,
-          sku: v.sku ?? null,
-          attributes: v.attributes,
-          price: v.price,
-          stock: v.stock,
-          imageUrl: v.imageUrl ?? null,
-          sortOrder: i,
-        })),
-      );
-      await this.productRepo.saveVariations(product);
-    }
+      // Save variations
+      if (dto.variations && dto.variations.length > 0) {
+        product.setVariations(
+          dto.variations.map((v, i) => ({
+            id: randomUUID(),
+            name: v.name,
+            sku: v.sku ?? null,
+            attributes: v.attributes,
+            price: v.price,
+            stock: v.stock,
+            imageUrl: v.imageUrl ?? null,
+            sortOrder: i,
+          })),
+        );
+        await this.productRepo.saveVariations(product, tx);
+      }
 
-    // Save photos
-    if (dto.photos && dto.photos.length > 0) {
-      product.setPhotos(
-        dto.photos.map((url, i) => ({
-          id: randomUUID(),
-          url,
-          isMain: i === 0,
-          sortOrder: i,
-          variationId: null,
-        })),
-      );
-      await this.productRepo.savePhotos(product);
-    }
+      // Save photos
+      if (dto.photos && dto.photos.length > 0) {
+        product.setPhotos(
+          dto.photos.map((url, i) => ({
+            id: randomUUID(),
+            url,
+            isMain: i === 0,
+            sortOrder: i,
+            variationId: null,
+          })),
+        );
+        await this.productRepo.savePhotos(product, tx);
+      }
 
-    // Save custom fields
-    if (dto.customFields && dto.customFields.length > 0) {
-      product.setCustomFields(
-        dto.customFields.map((cf, i) => ({
-          id: cf.id || randomUUID(),
-          key: cf.key,
-          value: cf.value,
-          type: cf.type ?? 'text',
-          sortOrder: i,
-          variationId: null,
-        })),
-      );
-      await this.productRepo.saveCustomFields(product);
-    }
+      // Save custom fields
+      if (dto.customFields && dto.customFields.length > 0) {
+        product.setCustomFields(
+          dto.customFields.map((cf, i) => ({
+            id: randomUUID(),
+            key: cf.key,
+            value: cf.value,
+            type: cf.type ?? 'text',
+            sortOrder: i,
+            variationId: null,
+          })),
+        );
+        await this.productRepo.saveCustomFields(product, tx);
+      }
+    });
 
     return this.toResponse(product);
   }
@@ -147,53 +153,55 @@ export class ProductService implements ProductUseCasePort {
       status: dto.status,
     });
 
-    await this.productRepo.update(product);
+    await this.transactionManager.run(async (tx) => {
+      await this.productRepo.update(product, tx);
 
-    // Update variations if provided
-    if (dto.variations !== undefined) {
-      product.setVariations(
-        (dto.variations ?? []).map((v, i) => ({
-          id: v.id || randomUUID(),
-          name: v.name,
-          sku: v.sku ?? null,
-          attributes: v.attributes,
-          price: v.price,
-          stock: v.stock,
-          imageUrl: v.imageUrl ?? null,
-          sortOrder: i,
-        })),
-      );
-      await this.productRepo.saveVariations(product);
-    }
+      // Update variations if provided
+      if (dto.variations !== undefined) {
+        product.setVariations(
+          (dto.variations ?? []).map((v, i) => ({
+            id: randomUUID(),
+            name: v.name,
+            sku: v.sku ?? null,
+            attributes: v.attributes,
+            price: v.price,
+            stock: v.stock,
+            imageUrl: v.imageUrl ?? null,
+            sortOrder: i,
+          })),
+        );
+        await this.productRepo.saveVariations(product, tx);
+      }
 
-    // Update photos if provided
-    if (dto.photos !== undefined) {
-      product.setPhotos(
-        (dto.photos ?? []).map((url, i) => ({
-          id: randomUUID(),
-          url,
-          isMain: i === 0,
-          sortOrder: i,
-          variationId: null,
-        })),
-      );
-      await this.productRepo.savePhotos(product);
-    }
+      // Update photos if provided
+      if (dto.photos !== undefined) {
+        product.setPhotos(
+          (dto.photos ?? []).map((url, i) => ({
+            id: randomUUID(),
+            url,
+            isMain: i === 0,
+            sortOrder: i,
+            variationId: null,
+          })),
+        );
+        await this.productRepo.savePhotos(product, tx);
+      }
 
-    // Update custom fields if provided
-    if (dto.customFields !== undefined) {
-      product.setCustomFields(
-        (dto.customFields ?? []).map((cf, i) => ({
-          id: cf.id || randomUUID(),
-          key: cf.key,
-          value: cf.value,
-          type: cf.type ?? 'text',
-          sortOrder: i,
-          variationId: null,
-        })),
-      );
-      await this.productRepo.saveCustomFields(product);
-    }
+      // Update custom fields if provided
+      if (dto.customFields !== undefined) {
+        product.setCustomFields(
+          (dto.customFields ?? []).map((cf, i) => ({
+            id: randomUUID(),
+            key: cf.key,
+            value: cf.value,
+            type: cf.type ?? 'text',
+            sortOrder: i,
+            variationId: null,
+          })),
+        );
+        await this.productRepo.saveCustomFields(product, tx);
+      }
+    });
 
     return this.toResponse(product);
   }
@@ -202,6 +210,104 @@ export class ProductService implements ProductUseCasePort {
     const product = await this.productRepo.findById(id, tenantId);
     if (!product) throw new NotFoundException('Produto não encontrado');
     await this.productRepo.delete(id, tenantId);
+  }
+
+  // ── Variation sub-resource ──────────────────────────────
+
+  async listVariations(productId: string, tenantId: string): Promise<VariationResponseDto[]> {
+    await this.ensureProductExists(productId, tenantId);
+    const variations = await this.productRepo.findVariationsByProduct(productId);
+    return variations.map(this.toVariationResponse);
+  }
+
+  async createVariation(productId: string, tenantId: string, dto: CreateVariationDto): Promise<VariationResponseDto> {
+    await this.ensureProductExists(productId, tenantId);
+    const existing = await this.productRepo.findVariationsByProduct(productId);
+    const variation = await this.productRepo.addVariation(productId, {
+      id: randomUUID(),
+      name: dto.name,
+      sku: dto.sku ?? null,
+      attributes: dto.attributes,
+      price: dto.price,
+      stock: dto.stock,
+      imageUrl: dto.imageUrl ?? null,
+      sortOrder: existing.length,
+    });
+    return this.toVariationResponse(variation);
+  }
+
+  async updateVariation(productId: string, variationId: string, tenantId: string, dto: UpdateVariationDto): Promise<VariationResponseDto> {
+    await this.ensureProductExists(productId, tenantId);
+    const updated = await this.productRepo.updateVariation(variationId, productId, {
+      name: dto.name,
+      sku: dto.sku,
+      attributes: dto.attributes,
+      price: dto.price,
+      stock: dto.stock,
+      imageUrl: dto.imageUrl,
+    });
+    if (!updated) throw new NotFoundException('Variação não encontrada');
+    return this.toVariationResponse(updated);
+  }
+
+  async deleteVariation(productId: string, variationId: string, tenantId: string): Promise<void> {
+    await this.ensureProductExists(productId, tenantId);
+    const deleted = await this.productRepo.deleteVariation(variationId, productId);
+    if (!deleted) throw new NotFoundException('Variação não encontrada');
+  }
+
+  // ── Custom field sub-resource ───────────────────────────
+
+  async listCustomFields(productId: string, tenantId: string): Promise<CustomFieldResponseDto[]> {
+    await this.ensureProductExists(productId, tenantId);
+    const fields = await this.productRepo.findCustomFieldsByProduct(productId);
+    return fields.map(this.toCustomFieldResponse);
+  }
+
+  async createCustomField(productId: string, tenantId: string, dto: CreateCustomFieldDto): Promise<CustomFieldResponseDto> {
+    await this.ensureProductExists(productId, tenantId);
+    const existing = await this.productRepo.findCustomFieldsByProduct(productId);
+    const field = await this.productRepo.addCustomField(productId, {
+      id: randomUUID(),
+      key: dto.key,
+      value: dto.value,
+      type: dto.type ?? 'text',
+      sortOrder: existing.length,
+      variationId: null,
+    });
+    return this.toCustomFieldResponse(field);
+  }
+
+  async updateCustomField(productId: string, fieldId: string, tenantId: string, dto: UpdateCustomFieldDto): Promise<CustomFieldResponseDto> {
+    await this.ensureProductExists(productId, tenantId);
+    const updated = await this.productRepo.updateCustomField(fieldId, productId, {
+      key: dto.key,
+      value: dto.value,
+      type: dto.type,
+    });
+    if (!updated) throw new NotFoundException('Campo customizado não encontrado');
+    return this.toCustomFieldResponse(updated);
+  }
+
+  async deleteCustomField(productId: string, fieldId: string, tenantId: string): Promise<void> {
+    await this.ensureProductExists(productId, tenantId);
+    const deleted = await this.productRepo.deleteCustomField(fieldId, productId);
+    if (!deleted) throw new NotFoundException('Campo customizado não encontrado');
+  }
+
+  // ── Private helpers ─────────────────────────────────────
+
+  private async ensureProductExists(productId: string, tenantId: string): Promise<void> {
+    const product = await this.productRepo.findById(productId, tenantId);
+    if (!product) throw new NotFoundException('Produto não encontrado');
+  }
+
+  private toVariationResponse(v: { id: string; name: string; sku: string | null; attributes: any[]; price: number; stock: number; imageUrl: string | null; sortOrder: number }): VariationResponseDto {
+    return { id: v.id, name: v.name, sku: v.sku, attributes: v.attributes, price: v.price, stock: v.stock, imageUrl: v.imageUrl, sortOrder: v.sortOrder };
+  }
+
+  private toCustomFieldResponse(cf: { id: string; key: string; value: string; type: string; sortOrder: number; variationId: string | null }): CustomFieldResponseDto {
+    return { id: cf.id, key: cf.key, value: cf.value, type: cf.type, sortOrder: cf.sortOrder, variationId: cf.variationId };
   }
 
   private toResponse(product: Product): ProductResponseDto {
@@ -245,6 +351,8 @@ export class ProductService implements ProductUseCasePort {
         key: cf.key,
         value: cf.value,
         type: cf.type,
+        sortOrder: cf.sortOrder,
+        variationId: cf.variationId,
       })),
       createdAt: product.createdAt.toISOString(),
       updatedAt: product.updatedAt.toISOString(),

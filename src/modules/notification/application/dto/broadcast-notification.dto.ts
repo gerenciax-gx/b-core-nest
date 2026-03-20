@@ -11,6 +11,7 @@ export class BroadcastNotificationDto {
   @ApiProperty({ description: 'Mensagem da notificação', example: 'O sistema ficará indisponível das 02h às 04h.' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(2000)
   message!: string;
 
   @ApiPropertyOptional({

@@ -31,6 +31,17 @@ export class DashboardTenantDto {
   logoUrl!: string | null;
 }
 
+export class DashboardSubscriptionDto {
+  @ApiProperty({ example: 'active' })
+  status!: string;
+
+  @ApiProperty({ example: '2026-04-01', nullable: true })
+  nextBillingDate!: string | null;
+
+  @ApiProperty({ example: 149.7 })
+  totalAmount!: number;
+}
+
 export class DashboardResponseDto {
   @ApiProperty()
   user!: DashboardUserDto;
@@ -38,12 +49,21 @@ export class DashboardResponseDto {
   @ApiProperty()
   tenant!: DashboardTenantDto;
 
-  @ApiProperty({ example: 0, description: 'Número de ferramentas ativas (implementado na Fase 4)' })
+  @ApiProperty({ example: 3, description: 'Ferramentas ativas do tenant' })
   activeToolsCount!: number;
 
-  @ApiProperty({ example: 0, description: 'Notificações não lidas (implementado na Fase 5)' })
+  @ApiProperty({ example: 5, description: 'Notificações não lidas' })
   unreadNotifications!: number;
 
-  @ApiProperty({ type: String, nullable: true, example: null, description: 'Resumo da assinatura (implementado na Fase 4)' })
-  subscription!: string | null;
+  @ApiProperty({ example: 2, description: 'Colaboradores ativos' })
+  activeCollaborators!: number;
+
+  @ApiProperty({ example: 15, description: 'Total de produtos cadastrados' })
+  totalProducts!: number;
+
+  @ApiProperty({ example: 8, description: 'Total de serviços cadastrados' })
+  totalServices!: number;
+
+  @ApiProperty({ type: DashboardSubscriptionDto, nullable: true, description: 'Resumo da assinatura ativa' })
+  subscription!: DashboardSubscriptionDto | null;
 }

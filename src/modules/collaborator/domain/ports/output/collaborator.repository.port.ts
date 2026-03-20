@@ -1,8 +1,9 @@
 import type { Collaborator } from '../../entities/collaborator.entity.js';
 import type { PaginationQuery } from '../../../../../common/types/api-response.type.js';
+import type { DbClient } from '../../../../../common/database/transaction.helper.js';
 
 export interface CollaboratorRepositoryPort {
-  save(collaborator: Collaborator): Promise<Collaborator>;
+  save(collaborator: Collaborator, tx?: DbClient): Promise<Collaborator>;
   findById(id: string, tenantId: string): Promise<Collaborator | null>;
   findByEmail(email: string): Promise<Collaborator | null>;
   findByCpf(cpf: string, tenantId: string): Promise<Collaborator | null>;
@@ -18,6 +19,7 @@ export interface CollaboratorRepositoryPort {
   saveToolPermissions(
     collaboratorId: string,
     permissions: { toolId: string; hasAccess: boolean }[],
+    tx?: DbClient,
   ): Promise<void>;
   findToolPermissions(
     collaboratorId: string,

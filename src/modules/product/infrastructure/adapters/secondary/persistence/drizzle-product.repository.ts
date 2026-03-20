@@ -1,8 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { eq, and, ilike, sql, asc, desc, type SQL } from 'drizzle-orm';
+import { escapeLikePattern } from '../../../../../../common/utils/sql.util.js';
 import { randomUUID } from 'node:crypto';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
+import type { DbClient } from '../../../../../../common/database/transaction.helper.js';
 import type { ProductRepositoryPort } from '../../../../domain/ports/output/product.repository.port.js';
 import {
   Product,
@@ -28,8 +30,9 @@ export class DrizzleProductRepository implements ProductRepositoryPort {
     private readonly db: NodePgDatabase,
   ) {}
 
-  async save(product: Product): Promise<Product> {
-    await this.db.insert(products).values({
+  async save(product: Product, tx?: DbClient): Promise<Product> {
+    const db = tx ?? this.db;
+    await db.insert(products).values({
       id: product.id,
       tenantId: product.tenantId,
       categoryId: product.categoryId,
@@ -84,7 +87,8 @@ export class DrizzleProductRepository implements ProductRepositoryPort {
     if (filters?.categoryId) conditions.push(eq(products.categoryId, filters.categoryId));
     if (filters?.search) {
       conditions.push(
-        sql`(${ilike(products.name, `%${filters.search}%`)} OR ${ilike(products.sku, `%${filters.search}%`)})`,
+        sql`(${ilike(products.name, `%${escapeLikePattern(filters.search)}%`)} OR ${ilike(products.sku, `%${escapeLikePattern(filters.search)}%`)})`,
+
       );
     }
 
@@ -122,8 +126,9 @@ export class DrizzleProductRepository implements ProductRepositoryPort {
     return sortMap[sortBy ?? 'createdAt'] ?? products.createdAt;
   }
 
-  async update(product: Product): Promise<Product> {
-    await this.db
+  async update(product: Product, tx?: DbClient): Promise<Product> {
+    const db = tx ?? this.db;
+    await db
       .update(products)
       .set({
         categoryId: product.categoryId,
@@ -162,14 +167,15 @@ export class DrizzleProductRepository implements ProductRepositoryPort {
       .where(and(eq(products.id, id), eq(products.tenantId, tenantId)));
   }
 
-  async saveVariations(product: Product): Promise<void> {
+  async saveVariations(product: Product, tx?: DbClient): Promise<void> {
+    const db = tx ?? this.db;
     // Delete existing and re-insert
-    await this.db
+    await db
       .delete(productVariations)
       .where(eq(productVariations.productId, product.id));
 
     if (product.variations.length > 0) {
-      await this.db.insert(productVariations).values(
+      await db.insert(productVariations).values(
         product.variations.map((v) => ({
           id: v.id || randomUUID(),
           productId: product.id,
@@ -185,13 +191,14 @@ export class DrizzleProductRepository implements ProductRepositoryPort {
     }
   }
 
-  async savePhotos(product: Product): Promise<void> {
-    await this.db
+  async savePhotos(product: Product, tx?: DbClient): Promise<void> {
+    const db = tx ?? this.db;
+    await db
       .delete(productPhotos)
       .where(eq(productPhotos.productId, product.id));
 
     if (product.photos.length > 0) {
-      await this.db.insert(productPhotos).values(
+      await db.insert(productPhotos).values(
         product.photos.map((p) => ({
           id: p.id || randomUUID(),
           productId: product.id,
@@ -204,13 +211,14 @@ export class DrizzleProductRepository implements ProductRepositoryPort {
     }
   }
 
-  async saveCustomFields(product: Product): Promise<void> {
-    await this.db
+  async saveCustomFields(product: Product, tx?: DbClient): Promise<void> {
+    const db = tx ?? this.db;
+    await db
       .delete(productCustomFields)
       .where(eq(productCustomFields.productId, product.id));
 
     if (product.customFields.length > 0) {
-      await this.db.insert(productCustomFields).values(
+      await db.insert(productCustomFields).values(
         product.customFields.map((cf) => ({
           id: cf.id || randomUUID(),
           productId: product.id,
@@ -303,5 +311,162 @@ export class DrizzleProductRepository implements ProductRepositoryPort {
       row.createdAt,
       row.updatedAt,
     );
+  }
+
+  // ── Variation sub-resource ──────────────────────────────
+
+  async findVariationsByProduct(productId: string): Promise<ProductVariationData[]> {
+    const rows = await this.db
+      .select()
+      .from(productVariations)
+      .where(eq(productVariations.productId, productId))
+      .orderBy(productVariations.sortOrder);
+
+    return rows.map((v) => ({
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      attributes: (v.attributes as VariationAttribute[]) ?? [],
+      price: Number(v.price),
+      stock: v.stock,
+      imageUrl: v.imageUrl,
+      sortOrder: v.sortOrder,
+    }));
+  }
+
+  async findVariationById(variationId: string, productId: string): Promise<ProductVariationData | null> {
+    const rows = await this.db
+      .select()
+      .from(productVariations)
+      .where(and(eq(productVariations.id, variationId), eq(productVariations.productId, productId)))
+      .limit(1);
+
+    const v = rows[0];
+    if (!v) return null;
+    return {
+      id: v.id,
+      name: v.name,
+      sku: v.sku,
+      attributes: (v.attributes as VariationAttribute[]) ?? [],
+      price: Number(v.price),
+      stock: v.stock,
+      imageUrl: v.imageUrl,
+      sortOrder: v.sortOrder,
+    };
+  }
+
+  async addVariation(productId: string, variation: ProductVariationData): Promise<ProductVariationData> {
+    await this.db.insert(productVariations).values({
+      id: variation.id,
+      productId,
+      name: variation.name,
+      sku: variation.sku,
+      attributes: variation.attributes,
+      price: String(variation.price),
+      stock: variation.stock,
+      imageUrl: variation.imageUrl,
+      sortOrder: variation.sortOrder,
+    });
+    return variation;
+  }
+
+  async updateVariation(variationId: string, productId: string, data: Partial<ProductVariationData>): Promise<ProductVariationData | null> {
+    const set: Record<string, unknown> = {};
+    if (data.name !== undefined) set.name = data.name;
+    if (data.sku !== undefined) set.sku = data.sku;
+    if (data.attributes !== undefined) set.attributes = data.attributes;
+    if (data.price !== undefined) set.price = String(data.price);
+    if (data.stock !== undefined) set.stock = data.stock;
+    if (data.imageUrl !== undefined) set.imageUrl = data.imageUrl;
+    if (data.sortOrder !== undefined) set.sortOrder = data.sortOrder;
+    set.updatedAt = new Date();
+
+    await this.db
+      .update(productVariations)
+      .set(set)
+      .where(and(eq(productVariations.id, variationId), eq(productVariations.productId, productId)));
+
+    return this.findVariationById(variationId, productId);
+  }
+
+  async deleteVariation(variationId: string, productId: string): Promise<boolean> {
+    const result = await this.db
+      .delete(productVariations)
+      .where(and(eq(productVariations.id, variationId), eq(productVariations.productId, productId)));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ── Custom field sub-resource ───────────────────────────
+
+  async findCustomFieldsByProduct(productId: string): Promise<ProductCustomFieldData[]> {
+    const rows = await this.db
+      .select()
+      .from(productCustomFields)
+      .where(eq(productCustomFields.productId, productId))
+      .orderBy(productCustomFields.sortOrder);
+
+    return rows.map((cf) => ({
+      id: cf.id,
+      key: cf.key,
+      value: cf.value,
+      type: cf.type as 'text' | 'number' | 'date' | 'boolean',
+      sortOrder: cf.sortOrder,
+      variationId: cf.variationId,
+    }));
+  }
+
+  async findCustomFieldById(fieldId: string, productId: string): Promise<ProductCustomFieldData | null> {
+    const rows = await this.db
+      .select()
+      .from(productCustomFields)
+      .where(and(eq(productCustomFields.id, fieldId), eq(productCustomFields.productId, productId)))
+      .limit(1);
+
+    const cf = rows[0];
+    if (!cf) return null;
+    return {
+      id: cf.id,
+      key: cf.key,
+      value: cf.value,
+      type: cf.type as 'text' | 'number' | 'date' | 'boolean',
+      sortOrder: cf.sortOrder,
+      variationId: cf.variationId,
+    };
+  }
+
+  async addCustomField(productId: string, field: ProductCustomFieldData): Promise<ProductCustomFieldData> {
+    await this.db.insert(productCustomFields).values({
+      id: field.id,
+      productId,
+      variationId: field.variationId,
+      key: field.key,
+      value: field.value,
+      type: field.type,
+      sortOrder: field.sortOrder,
+    });
+    return field;
+  }
+
+  async updateCustomField(fieldId: string, productId: string, data: Partial<ProductCustomFieldData>): Promise<ProductCustomFieldData | null> {
+    const set: Record<string, unknown> = {};
+    if (data.key !== undefined) set.key = data.key;
+    if (data.value !== undefined) set.value = data.value;
+    if (data.type !== undefined) set.type = data.type;
+    if (data.sortOrder !== undefined) set.sortOrder = data.sortOrder;
+    if (data.variationId !== undefined) set.variationId = data.variationId;
+
+    await this.db
+      .update(productCustomFields)
+      .set(set)
+      .where(and(eq(productCustomFields.id, fieldId), eq(productCustomFields.productId, productId)));
+
+    return this.findCustomFieldById(fieldId, productId);
+  }
+
+  async deleteCustomField(fieldId: string, productId: string): Promise<boolean> {
+    const result = await this.db
+      .delete(productCustomFields)
+      .where(and(eq(productCustomFields.id, fieldId), eq(productCustomFields.productId, productId)));
+    return (result.rowCount ?? 0) > 0;
   }
 }

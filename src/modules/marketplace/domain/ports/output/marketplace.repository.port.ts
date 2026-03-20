@@ -36,5 +36,30 @@ export interface MarketplaceRepositoryPort {
   createSubscription(
     tenantId: string,
     planId: string,
+    trialDays?: number,
   ): Promise<TenantSubscription>;
+
+  findSubscriptionById(
+    subscriptionId: string,
+  ): Promise<TenantSubscription | null>;
+
+  cancelSubscription(subscriptionId: string): Promise<void>;
+
+  updateSubscriptionPlan(
+    subscriptionId: string,
+    newPlanId: string,
+    activateFromTrial?: boolean,
+  ): Promise<TenantSubscription>;
+
+  /** Subscriptions com status 'trialing' e trialEndsAt <= now */
+  findExpiredTrialSubscriptions(): Promise<TenantSubscription[]>;
+
+  /** Verifica se tenant já teve trial (qualquer status) para uma tool */
+  hasHadTrialForTool(tenantId: string, toolId: string): Promise<boolean>;
+
+  /** Trials que expiraram recentemente (últimos N dias), para popup */
+  findRecentlyExpiredTrials(
+    tenantId: string,
+    withinDays: number,
+  ): Promise<{ subscriptionId: string; toolId: string; toolName: string; toolSlug: string; expiredAt: Date }[]>;
 }

@@ -9,8 +9,12 @@ export interface SignupInput {
   name: string;
   email: string;
   password: string;
+  passwordConfirm?: string;
   companyName: string;
   companyType: 'products' | 'services' | 'both';
+  device?: string;
+  ip?: string;
+  userAgent?: string;
 }
 
 export interface LoginInput {
@@ -35,4 +39,7 @@ export interface AuthUseCasePort {
     currentPassword: string,
     newPassword: string,
   ): Promise<void>;
+  forgotPassword(email: string): Promise<void>;
+  verifyResetToken(token: string): Promise<{ valid: boolean }>;
+  confirmPasswordReset(token: string, newPassword: string): Promise<void>;
 }

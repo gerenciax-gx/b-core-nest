@@ -1,6 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_PIPE, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -10,10 +10,12 @@ import {
   appConfig,
   authConfig,
   databaseConfig,
+  emailConfig,
   redisConfig,
   asaasConfig,
 } from './common/config/index.js';
 import { DatabaseModule } from './common/database/index.js';
+import { EventBusModule } from './common/types/event-bus.module.js';
 import { LoggingModule } from './common/logging/index.js';
 import { HealthController } from './common/health/health.controller.js';
 import {
@@ -27,6 +29,9 @@ import {
   CorrelationIdMiddleware,
   ClientTypeMiddleware,
 } from './common/middleware/index.js';
+import { ValidationPipe } from './common/pipes/index.js';
+import { GlobalExceptionFilter } from './common/filters/index.js';
+import { ResponseInterceptor } from './common/interceptors/index.js';
 
 // ── Feature modules ───────────────────────────────────────
 import { AuthModule } from './modules/auth/auth.module.js';
@@ -50,12 +55,13 @@ import { QueueModule } from './modules/queue/queue.module.js';
       isGlobal: true,
       cache: true,
       envFilePath: [`.env.${process.env['NODE_ENV'] ?? 'dev'}`, '.env'],
-      load: [appConfig, authConfig, databaseConfig, redisConfig, asaasConfig],
+      load: [appConfig, authConfig, databaseConfig, emailConfig, redisConfig, asaasConfig],
     }),
 
     // ── Infrastructure ─────────────────────────────────────
     LoggingModule,
     DatabaseModule,
+    EventBusModule,
 
     // ── Rate limiting ──────────────────────────────────────
     ThrottlerModule.forRoot([
@@ -106,6 +112,10 @@ import { QueueModule } from './modules/queue/queue.module.js';
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
     { provide: APP_GUARD, useClass: SuspensionGuard },
+    // Global pipe, filter, interceptor (via DI instead of main.ts manual new)
+    { provide: APP_PIPE, useClass: ValidationPipe },
+    { provide: APP_FILTER, useClass: GlobalExceptionFilter },
+    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
   ],
 })
 export class AppModule implements NestModule {

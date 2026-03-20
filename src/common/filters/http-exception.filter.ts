@@ -134,7 +134,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       body: {
         success: false,
         message:
-          process.env.NODE_ENV === 'production'
+          process.env['NODE_ENV'] === 'prod'
             ? 'Erro interno do servidor'
             : message,
         error: {

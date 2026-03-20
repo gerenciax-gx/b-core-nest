@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { DATABASE_CONNECTION } from '../../../../../../common/database/database.module.js';
+import type { DbClient } from '../../../../../../common/database/transaction.helper.js';
 import { TenantRepositoryPort } from '../../../../domain/ports/output/tenant.repository.port.js';
 import {
   Tenant,
@@ -17,8 +18,9 @@ export class DrizzleTenantRepository implements TenantRepositoryPort {
     private readonly db: NodePgDatabase,
   ) {}
 
-  async save(tenant: Tenant): Promise<Tenant> {
-    await this.db.insert(tenants).values({
+  async save(tenant: Tenant, tx?: DbClient): Promise<Tenant> {
+    const db = tx ?? this.db;
+    await db.insert(tenants).values({
       id: tenant.id,
       companyName: tenant.companyName,
       companyType: tenant.companyType,

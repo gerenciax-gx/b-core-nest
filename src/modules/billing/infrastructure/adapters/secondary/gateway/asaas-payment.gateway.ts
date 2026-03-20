@@ -24,6 +24,17 @@ export class AsaasPaymentGateway implements PaymentGatewayPort {
   }
 
   async createCustomer(input: CreateCustomerInput): Promise<{ id: string }> {
+    const body = this.buildCustomerBody(input);
+    const response = await this.request('POST', '/customers', body);
+    return { id: response.id as string };
+  }
+
+  async updateCustomer(customerId: string, input: CreateCustomerInput): Promise<void> {
+    const body = this.buildCustomerBody(input);
+    await this.request('PUT', `/customers/${customerId}`, body);
+  }
+
+  private buildCustomerBody(input: CreateCustomerInput): Record<string, unknown> {
     const body: Record<string, unknown> = {
       name: input.name,
       email: input.email,
@@ -39,9 +50,7 @@ export class AsaasPaymentGateway implements PaymentGatewayPort {
       body['state'] = input.address.state;
       body['postalCode'] = input.address.zipCode?.replace(/\D/g, '');
     }
-
-    const response = await this.request('POST', '/customers', body);
-    return { id: response.id as string };
+    return body;
   }
 
   async createCharge(input: CreateChargeInput): Promise<ChargeResult> {
@@ -78,6 +87,7 @@ export class AsaasPaymentGateway implements PaymentGatewayPort {
       pixQrCodeBase64: response.pixQrCodeBase64 as string | undefined,
       pixCopyPaste: response.pixCopyPaste as string | undefined,
       creditCardToken: response.creditCardToken as string | undefined,
+      creditCardBrand: response.creditCardBrand as string | undefined,
     };
   }
 
