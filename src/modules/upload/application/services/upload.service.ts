@@ -78,6 +78,13 @@ export class UploadService implements UploadUseCasePort {
     return results;
   }
 
+  async getSignedUrl(filePath: string, tenantId: string): Promise<string> {
+    if (!filePath.startsWith(`${tenantId}/`)) {
+      throw new ForbiddenException('Sem permissão para acessar este arquivo');
+    }
+    return this.storage.getSignedUrl(filePath);
+  }
+
   async deleteFile(filePath: string, tenantId: string): Promise<void> {
     if (!filePath.startsWith(`${tenantId}/`)) {
       throw new ForbiddenException('Sem permissão para deletar este arquivo');

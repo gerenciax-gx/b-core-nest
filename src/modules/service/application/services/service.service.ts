@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { ServiceUseCasePort } from '../../domain/ports/input/service.usecase.port.js';
 import type { ServiceRepositoryPort } from '../../domain/ports/output/service.repository.port.js';
+import type { UploadUseCasePort } from '../../../upload/domain/ports/input/upload.usecase.port.js';
 import { Service } from '../../domain/entities/service.entity.js';
 import type {
   CreateServiceDto,
@@ -22,6 +23,8 @@ export class ServiceService implements ServiceUseCasePort {
   constructor(
     @Inject('ServiceRepositoryPort')
     private readonly serviceRepo: ServiceRepositoryPort,
+    @Inject('UploadUseCasePort')
+    private readonly uploadService: UploadUseCasePort,
     private readonly transactionManager: TransactionManager,
   ) {}
 
@@ -146,8 +149,14 @@ export class ServiceService implements ServiceUseCasePort {
 
       // Update photos if provided
       if (dto.photos !== undefined || dto.photoUrls !== undefined) {
+        const oldPhotoUrls = service.photos.map((p) => p.url);
         service.setPhotos(photoEntries);
         await this.serviceRepo.savePhotos(service, tx);
+
+        // Cleanup old files no longer referenced
+        const newUrls = new Set(service.photos.map((p) => p.url));
+        const toDelete = oldPhotoUrls.filter((u) => !newUrls.has(u));
+        await this.deleteFilesQuietly(toDelete, tenantId);
       }
 
       // Update professionals if provided
@@ -168,7 +177,10 @@ export class ServiceService implements ServiceUseCasePort {
   async delete(id: string, tenantId: string): Promise<void> {
     const service = await this.serviceRepo.findById(id, tenantId);
     if (!service) throw new NotFoundException('Serviço não encontrado');
+
+    const photoUrls = service.photos.map((p) => p.url);
     await this.serviceRepo.delete(id, tenantId);
+    await this.deleteFilesQuietly(photoUrls, tenantId);
   }
 
   // ── Price Variation sub-resource ────────────────────────
@@ -234,8 +246,17 @@ export class ServiceService implements ServiceUseCasePort {
 
   async removePhoto(serviceId: string, photoId: string, tenantId: string): Promise<void> {
     await this.ensureServiceExists(serviceId, tenantId);
+
+    // Get photo URL before deleting
+    const photos = await this.serviceRepo.findPhotosByService(serviceId);
+    const photo = photos.find((p) => p.id === photoId);
+
     const deleted = await this.serviceRepo.deletePhoto(photoId, serviceId);
     if (!deleted) throw new NotFoundException('Foto não encontrada');
+
+    if (photo?.url) {
+      await this.deleteFilesQuietly([photo.url], tenantId);
+    }
   }
 
   // ── Professional sub-resource ───────────────────────────
@@ -294,6 +315,12 @@ export class ServiceService implements ServiceUseCasePort {
     }
 
     return entries;
+  }
+
+  private async deleteFilesQuietly(paths: string[], tenantId: string): Promise<void> {
+    await Promise.allSettled(
+      paths.filter(Boolean).map((p) => this.uploadService.deleteFile(p, tenantId)),
+    );
   }
 
   private toResponse(service: Service): ServiceResponseDto {

@@ -1,9 +1,12 @@
 import {
+  BadRequestException,
   Controller,
   Delete,
+  Get,
   Inject,
   Param,
   Post,
+  Query,
   UploadedFile,
   UploadedFiles,
   UseInterceptors,
@@ -17,6 +20,7 @@ import {
   ApiBody,
   ApiResponse,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import type { UploadUseCasePort } from '../../../domain/ports/input/upload.usecase.port.js';
 import { UploadSuccessResponseDto, UploadMultipleSuccessResponseDto } from '../../../application/dto/upload-response-wrapper.dto.js';
@@ -95,6 +99,29 @@ export class UploadController {
     return {
       success: true,
       data: results,
+    };
+  }
+
+  @Get('signed-url')
+  @ApiOperation({ summary: 'Obter URL assinada temporária para um arquivo' })
+  @ApiQuery({ name: 'path', description: 'Caminho do arquivo no storage', required: true })
+  @ApiResponse({ status: 200, description: 'URL assinada gerada com sucesso' })
+  @ApiResponse({ status: 400, description: 'Path não informado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 401, description: 'Não autenticado', type: ApiErrorResponseDto })
+  @ApiResponse({ status: 403, description: 'Sem permissão', type: ApiErrorResponseDto })
+  async getSignedUrl(
+    @Query('path') filePath: string,
+    @CurrentTenant() tenantId: string,
+  ) {
+    if (!filePath) {
+      throw new BadRequestException('Path do arquivo é obrigatório');
+    }
+
+    const url = await this.uploadService.getSignedUrl(filePath, tenantId);
+
+    return {
+      success: true,
+      data: { url },
     };
   }
 

@@ -101,12 +101,22 @@ export class SettingsController {
     @CurrentUser('sub') userId: string,
     @CurrentTenant() tenantId: string,
   ) {
+    // Delete old avatar from storage if exists
+    const current = await this.settingsService.getPersonal(userId);
+    if (current.avatarUrl) {
+      try {
+        await this.uploadService.deleteFile(current.avatarUrl, tenantId);
+      } catch {
+        // Old file may not exist in storage — continue
+      }
+    }
+
     const uploaded = await this.uploadService.uploadImage(
       file,
       tenantId,
       'users',
     );
-    const data = await this.settingsService.updateAvatar(userId, uploaded.url);
+    const data = await this.settingsService.updateAvatar(userId, uploaded.path);
     return { success: true, data };
   }
 

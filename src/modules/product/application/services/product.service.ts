@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { ProductUseCasePort } from '../../domain/ports/input/product.usecase.port.js';
 import type { ProductRepositoryPort } from '../../domain/ports/output/product.repository.port.js';
+import type { UploadUseCasePort } from '../../../upload/domain/ports/input/upload.usecase.port.js';
 import { Product } from '../../domain/entities/product.entity.js';
 import type {
   CreateProductDto,
@@ -21,6 +22,8 @@ export class ProductService implements ProductUseCasePort {
   constructor(
     @Inject('ProductRepositoryPort')
     private readonly productRepo: ProductRepositoryPort,
+    @Inject('UploadUseCasePort')
+    private readonly uploadService: UploadUseCasePort,
     private readonly transactionManager: TransactionManager,
   ) {}
 
@@ -175,6 +178,7 @@ export class ProductService implements ProductUseCasePort {
 
       // Update photos if provided
       if (dto.photos !== undefined) {
+        const oldPhotoUrls = product.photos.map((p) => p.url);
         product.setPhotos(
           (dto.photos ?? []).map((url, i) => ({
             id: randomUUID(),
@@ -185,6 +189,11 @@ export class ProductService implements ProductUseCasePort {
           })),
         );
         await this.productRepo.savePhotos(product, tx);
+
+        // Cleanup old files that are no longer referenced
+        const newUrls = new Set(product.photos.map((p) => p.url));
+        const toDelete = oldPhotoUrls.filter((u) => !newUrls.has(u));
+        await this.deleteFilesQuietly(toDelete, tenantId);
       }
 
       // Update custom fields if provided
@@ -209,7 +218,10 @@ export class ProductService implements ProductUseCasePort {
   async delete(id: string, tenantId: string): Promise<void> {
     const product = await this.productRepo.findById(id, tenantId);
     if (!product) throw new NotFoundException('Produto não encontrado');
+
+    const photoUrls = product.photos.map((p) => p.url);
     await this.productRepo.delete(id, tenantId);
+    await this.deleteFilesQuietly(photoUrls, tenantId);
   }
 
   // ── Variation sub-resource ──────────────────────────────
@@ -308,6 +320,12 @@ export class ProductService implements ProductUseCasePort {
 
   private toCustomFieldResponse(cf: { id: string; key: string; value: string; type: string; sortOrder: number; variationId: string | null }): CustomFieldResponseDto {
     return { id: cf.id, key: cf.key, value: cf.value, type: cf.type, sortOrder: cf.sortOrder, variationId: cf.variationId };
+  }
+
+  private async deleteFilesQuietly(paths: string[], tenantId: string): Promise<void> {
+    await Promise.allSettled(
+      paths.filter(Boolean).map((p) => this.uploadService.deleteFile(p, tenantId)),
+    );
   }
 
   private toResponse(product: Product): ProductResponseDto {

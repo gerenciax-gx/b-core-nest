@@ -14,5 +14,7 @@ export interface StoragePort {
     folder: string,
   ): Promise<UploadedFile>;
 
+  getSignedUrl(filePath: string): Promise<string>;
+
   delete(filePath: string): Promise<void>;
 }

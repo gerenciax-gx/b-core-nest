@@ -11,5 +11,6 @@ export interface UploadUseCasePort {
     tenantId: string,
     folder: string,
   ): Promise<UploadedFile[]>;
+  getSignedUrl(filePath: string, tenantId: string): Promise<string>;
   deleteFile(filePath: string, tenantId: string): Promise<void>;
 }
